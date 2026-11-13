@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="media/hero.png" alt="Sitegeist" width="400">
+  <img width="406" height="412" alt="image" src="https://github.com/user-attachments/assets/ea2e72cb-69a5-42d6-a853-e51fb1eb807f" />
 </p>
 
 An AI assistant that lives in your browser sidebar, and a bridge that lets coding agents
