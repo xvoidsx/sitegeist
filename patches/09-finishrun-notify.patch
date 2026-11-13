@@ -1,0 +1,39 @@
+# Sitegeist patch 9: pi-agent-core notify subscribers when a run finishes
+# Package: @mariozechner/pi-agent-core@0.73.1
+# Applies to: pi-agent-core/dist/agent.js
+# Rationale: see PATCHES.md #9.
+# Generated 2026-11-13 from the live patched tree vs pristine 0.73.1
+# (scripts/apply-patches.mjs applies these in numeric order).
+#
+--- a/@mariozechner/pi-agent-core/dist/agent.js
++++ b/@mariozechner/pi-agent-core/dist/agent.js
+@@ -357,9 +357,29 @@
+     finishRun() {
+         this._state.isStreaming = false;
+         this._state.streamingMessage = undefined;
+         this._state.pendingToolCalls = new Set();
++        const signal = this.activeRun?.abortController.signal;
+         this.activeRun?.resolve();
+         this.activeRun = undefined;
++        // --- sitegeist patch: notify subscribers AFTER isStreaming flips
++        // false. runWithLifecycle emits agent_end before finishRun clears
++        // isStreaming, so the last event-driven render still sees
++        // isStreaming=true and the panel keeps showing Stop, a locked
++        // composer and the working glow — the run ended but nothing ever
++        // tells the UI. Listeners are invoked directly (not via
++        // processEvents, which requires an active run) with a second
++        // agent_end; all in-tree subscribers handle it idempotently. ---
++        for (const listener of [...this.listeners]) {
++            try {
++                const result = listener({ type: "agent_end", messages: this._state.messages }, signal);
++                if (result && typeof result.catch === "function") {
++                    result.catch((err) => console.error("[Agent] listener error after finishRun:", err));
++                }
++            }
++            catch (err) {
++                console.error("[Agent] listener error after finishRun:", err);
++            }
++        }
+     }
+     /**
+      * Reduce internal state for a loop event, then await listeners.

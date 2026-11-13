@@ -1,6 +1,6 @@
 {
 	"name": "sitegeist",
-	"version": "1.2.5",
+	"version": "1.2.6",
 	"private": true,
 	"description": "AI-powered browser extension for web navigation and interaction",
 	"type": "module",
@@ -17,7 +17,7 @@
 	},
 	"dependencies": {
 		"@mariozechner/jailjs": "^0.1.0",
-		"@mariozechner/mini-lit": "file:../mini-lit",
+		"@mariozechner/mini-lit": "0.2.1",
 		"@mariozechner/pi-agent-core": "0.73.1",
 		"@mariozechner/pi-ai": "0.73.1",
 		"@mariozechner/pi-web-ui": "0.73.1",
@@ -46,6 +46,7 @@
 		"concurrently": "^9.2.1",
 		"esbuild": "^0.25.10",
 		"husky": "^9.1.7",
+		"typescript": "5.9.2",
 		"ws": "^8.18.0"
 	}
 }

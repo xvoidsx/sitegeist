@@ -243,3 +243,31 @@ Verify: `grep -n "_toolStartAt\\|tool_execution_start" node_modules/@mariozechne
 `grep -n "isExpanded || this.isStreaming" node_modules/@mariozechner/pi-web-ui/dist/components/ThinkingBlock.js`.
 After `npm run build`, verify the markers landed in the bundle:
 `grep -o "_toolStartAt\\|anyPending\\|timed out after" dist-chrome/sidepanel.js | sort | uniq -c`.
+
+## 9. pi-agent-core: notify subscribers when a run finishes
+
+Why: `runWithLifecycle` emits `agent_end` before `finishRun()` clears
+`isStreaming`, and `finishRun()` itself notified nobody — so the last
+event-driven render any subscriber performed still saw `isStreaming=true`.
+In the panel that left the Stop indicator visible, the composer locked and
+the working glow stuck on after the text had already stopped (on abort and,
+in the worst timing, on normal completion too). Reproduced in node with a
+fake Lit-style subscriber that renders on each event via a microtask: before
+the fix the last render in both the normal-completion and abort-mid-stream
+cases saw `isStreaming=true` while the state was idle; after the fix the
+last render sees `false`.
+File:
+- `sitegeist/node_modules/@mariozechner/pi-agent-core/dist/agent.js`
+  - `finishRun()` captures the run's abort signal, resolves the run and
+    clears `activeRun`, then invokes every listener directly with a second
+    `{ type: "agent_end", messages: this._state.messages }` (and the old
+    signal). Direct invocation, not `processEvents`, which throws
+    "Agent listener invoked outside active run" once `activeRun` is gone.
+    Listener errors are caught and logged, never thrown. All in-tree
+    subscribers handle a second `agent_end` idempotently (AgentInterface
+    clears the streaming container and stuck timer again and re-renders;
+    the sidepanel listener re-publishes busy state and re-saves; cost
+    recording is guarded by `recordedCostMessages`).
+Verify: `grep -n "listener error after finishRun" node_modules/@mariozechner/pi-agent-core/dist/agent.js`.
+After `npm run build`, verify the marker landed in the bundle:
+`grep -o "listener error after finishRun" dist-chrome/sidepanel.js | sort | uniq -c`.

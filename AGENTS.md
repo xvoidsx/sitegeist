@@ -15,7 +15,7 @@ If the user did not give you a concrete task, read README.md first.
 - Always ask before removing functionality or code that appears intentional
 
 ## Dependencies
-- `@mariozechner/mini-lit`, `@mariozechner/pi-ai`, `@mariozechner/pi-web-ui`, `@mariozechner/pi-agent-core` are linked via `file:` to sibling repos `../mini-lit` and `../pi-mono`
+- `@mariozechner/mini-lit` is pinned to the published version (`0.2.1`); `@mariozechner/pi-ai`, `@mariozechner/pi-web-ui`, `@mariozechner/pi-agent-core` are pinned to published `0.73.1`. A bare clone installs with no sibling repos. (The old `file:../mini-lit` sibling link broke fresh clones with `ENOENT .../mini-lit/package.json`.)
 - Changes to those packages require rebuilding them (the dev watcher handles this)
 - If you need to modify upstream code, edit it in `../pi-mono` or `../mini-lit` directly and rebuild
 
