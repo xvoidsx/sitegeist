@@ -12,6 +12,7 @@ import {
 import { getModel, getModels, type Model } from "@mariozechner/pi-ai";
 import {
 	ChatPanel,
+	type CustomProvider,
 	createExtractDocumentTool,
 	createStreamFn,
 	ModelSelector,
@@ -308,9 +309,37 @@ const DEFAULT_MODELS: Record<string, string> = {
 	zai: "glm-4.6",
 };
 
+/**
+ * First model of a custom provider, preferring `preferredName` ("Ollama Local").
+ * Returns undefined when no custom provider has models yet.
+ */
+function firstCustomProviderModel(customProviders: CustomProvider[], preferredName?: string): Model<any> | undefined {
+	const ordered = preferredName
+		? [...customProviders].sort((a, b) => (a.name === preferredName ? -1 : b.name === preferredName ? 1 : 0))
+		: customProviders;
+	for (const provider of ordered) {
+		const model = provider.models?.[0];
+		if (model) return model;
+	}
+	return undefined;
+}
+
 async function selectDefaultModelForAvailableProvider() {
+	if (!agent) return;
+
+	// Ollama-first: a local custom provider beats the built-in defaults, so a
+	// fresh install with only Ollama configured never lands on Sonnet.
+	const customProviders = await storage.customProviders.getAll().catch(() => []);
+	const customModel = firstCustomProviderModel(customProviders, "Ollama Local");
+	if (customModel) {
+		agent.setModel(customModel);
+		await storage.settings.set("lastUsedModel", customModel);
+		renderApp();
+		return;
+	}
+
 	const providers = await getProvidersWithKeys();
-	if (providers.length === 0 || !agent) return;
+	if (providers.length === 0) return;
 
 	// Try each provider with keys and find a default model
 	for (const provider of providers) {
@@ -332,18 +361,6 @@ async function selectDefaultModelForAvailableProvider() {
 		if (models.length > 0) {
 			agent.setModel(models[0]);
 			await storage.settings.set("lastUsedModel", models[0]);
-			renderApp();
-			return;
-		}
-	}
-
-	// Fall back to the first model of a custom provider (not in the built-in registry)
-	const customProviders = await storage.customProviders.getAll();
-	for (const customProvider of customProviders) {
-		const model = customProvider.models?.[0];
-		if (model) {
-			agent.setModel(model);
-			await storage.settings.set("lastUsedModel", model);
 			renderApp();
 			return;
 		}
@@ -552,22 +569,32 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 	const corsProxyEnabled = await storage.settings.get<boolean>("proxy.enabled");
 	const corsProxyUrl = await storage.settings.get<string>("proxy.url");
 
-	// Determine default model: saved > default for a provider with key > gemini flash fallback
+	// Determine default model, Ollama-first: a saved custom-provider model wins;
+	// otherwise prefer a local Ollama custom provider over the built-in defaults,
+	// so the panel never silently falls back to Sonnet while Ollama is configured.
 	let defaultModel: Model<any> | undefined;
 	if (!initialState?.model) {
 		const savedModel = await storage.settings.get<Model<any>>("lastUsedModel");
-		if (savedModel) {
+		const customProviders = await storage.customProviders.getAll().catch(() => []);
+		const isCustomProvider = (name: string | undefined) => customProviders.some((p) => p.name === name);
+		if (savedModel && isCustomProvider(savedModel.provider)) {
 			defaultModel = savedModel;
 		} else {
-			// Try to find a default model for a provider the user already has a key for
-			const providersWithKeys = await getProvidersWithKeys();
-			for (const provider of providersWithKeys) {
-				const modelId = DEFAULT_MODELS[provider];
-				if (modelId) {
-					const model = getModel(provider as any, modelId);
-					if (model) {
-						defaultModel = model;
-						break;
+			defaultModel = firstCustomProviderModel(customProviders, "Ollama Local");
+			if (!defaultModel && savedModel) {
+				defaultModel = savedModel;
+			}
+			if (!defaultModel) {
+				// Try to find a default model for a provider the user already has a key for
+				const providersWithKeys = await getProvidersWithKeys();
+				for (const provider of providersWithKeys) {
+					const modelId = DEFAULT_MODELS[provider];
+					if (modelId) {
+						const model = getModel(provider as any, modelId);
+						if (model) {
+							defaultModel = model;
+							break;
+						}
 					}
 				}
 			}
@@ -816,7 +843,13 @@ const loadSession = (sessionId: string) => {
 	url.search = "";
 	if (homeTabId !== undefined) url.searchParams.set("tabId", String(homeTabId));
 	url.searchParams.set("session", sessionId);
-	window.location.href = url.toString();
+	// Assigning an identical URL does not navigate: force a reload so
+	// re-opening the current session (or a fresh one) always re-inits.
+	if (url.toString() === window.location.href) {
+		window.location.reload();
+	} else {
+		window.location.href = url.toString();
+	}
 };
 
 const newSession = () => {
@@ -825,7 +858,16 @@ const newSession = () => {
 	url.search = "";
 	if (homeTabId !== undefined) url.searchParams.set("tabId", String(homeTabId));
 	url.searchParams.set("new", "true");
-	window.location.href = url.toString();
+	// Same trap as loadSession: while a run is stuck before the first
+	// assistant message, the URL is still ?new=true (no save yet, so
+	// updateUrl never ran) and assigning the identical URL silently does
+	// nothing — the "+" button looked dead exactly when a fresh start was
+	// needed most. Force a reload in that case.
+	if (url.toString() === window.location.href) {
+		window.location.reload();
+	} else {
+		window.location.href = url.toString();
+	}
 };
 
 // ============================================================================
@@ -833,7 +875,9 @@ const newSession = () => {
 // ============================================================================
 const renderApp = () => {
 	const appHtml = html`
-		<div class="w-full h-full flex flex-col bg-background text-foreground overflow-hidden">
+		<div
+			class="sitegeist-panel-root w-full h-full flex flex-col bg-background text-foreground overflow-hidden ${agent?.state.isStreaming ? "panel-working" : ""}"
+		>
 			<!-- Header -->
 			<div class="flex items-center justify-between border-b border-border shrink-0">
 				<div class="flex items-center gap-2 px-3 py-2">
@@ -1105,15 +1149,17 @@ async function checkForUpdates() {
 	try {
 		const currentVersion = chrome.runtime.getManifest().version;
 
-		// Fetch latest version
-		const response = await fetch("https://sitegeist.ai/uploads/version.json", {
+		// xvoidsx fork: check our own releases, not upstream's version.json.
+		// No releases published yet: a 404 means nothing newer exists.
+		const response = await fetch("https://api.github.com/repos/xvoidsx/sitegeist/releases/latest", {
 			cache: "no-cache",
 		});
+		if (!response.ok) return;
 		const data = await response.json();
-		const latestVersion = data.version;
+		const latestVersion = String(data.tag_name || "").replace(/^v/, "");
 
 		// Show dialog only if server version is newer than current version
-		if (isNewerVersion(latestVersion, currentVersion)) {
+		if (latestVersion !== "" && isNewerVersion(latestVersion, currentVersion)) {
 			// Show update dialog - blocks until extension is updated and restarted
 			await UpdateNotificationDialog.show(latestVersion);
 		}
@@ -1200,12 +1246,17 @@ async function initApp() {
 	const isNewSession = urlParams.get("new") === "true";
 
 	if (!sessionIdFromUrl && !isNewSession && homeTabId !== undefined && storage.sessions) {
-		const boundId = await sessionIdForTab(homeTabId);
-		// The tab's session id is the saved chat id once persisted; an unsaved one has no
-		// storage entry, so only restore ids the sessions store actually knows.
-		if (boundId && !boundId.startsWith("tab-") && !boundId.startsWith("temp-")) {
-			sessionIdFromUrl = boundId;
-			updateUrl(boundId);
+		try {
+			const boundId = await sessionIdForTab(homeTabId);
+			// The tab's session id is the saved chat id once persisted; an unsaved one has no
+			// storage entry, so only restore ids the sessions store actually knows.
+			if (boundId && !boundId.startsWith("tab-") && !boundId.startsWith("temp-")) {
+				sessionIdFromUrl = boundId;
+				updateUrl(boundId);
+			}
+		} catch (err) {
+			// A storage failure here must not kill panel init; fall through to a new session.
+			console.error("Failed to restore session for tab:", err);
 		}
 	}
 
@@ -1236,10 +1287,16 @@ async function initApp() {
 	// No session - create new agent with welcome message
 	await createAgent();
 
-	// Add welcome message for new sessions
+	// Add welcome message for new sessions. appendMessage assigns state
+	// directly and emits no event, so explicitly re-render the message list:
+	// without this, a list that already painted stays empty until the next
+	// agent event — and the first user message would hide the welcome via
+	// hasConversation before it was ever seen.
 	if (agent) {
 		const welcomeMessage = createWelcomeMessage(tutorials);
 		agent.appendMessage(welcomeMessage);
+		chatPanel.requestUpdate();
+		chatPanel.agentInterface?.requestUpdate();
 	}
 
 	renderApp();

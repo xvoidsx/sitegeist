@@ -291,6 +291,11 @@ Navigate to URLs and manage tabs.
 
 Tabs open in the background; the user keeps working in their own tabs.
 
+## Same-tab rule
+Navigation reuses the current tab (or the tab the panel is bound to) by default.
+NEVER open a new tab unless the user explicitly asked for one (e.g. "in a new tab",
+"open a new tab"). A plain "go to <site>" navigates the tab the user is looking at.
+
 ## Returns
 Final URL, page title, tab ID, and available skills.
 

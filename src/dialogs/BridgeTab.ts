@@ -23,6 +23,12 @@ import { listSessions } from "../browser/session.js";
  * Code, Codex through `sitegeist mcp`), which hosts they may open, and pending
  * permission requests.
  */
+interface BridgeHostState {
+	connected: boolean;
+	lastError: string | null;
+	clients: Array<{ clientId: string; name: string }>;
+}
+
 @customElement("bridge-tab")
 export class BridgeTab extends SettingsTab {
 	@state() private enabled = true;
@@ -30,6 +36,7 @@ export class BridgeTab extends SettingsTab {
 	@state() private hosts: string[] = [];
 	@state() private pending: PendingRequest[] = [];
 	@state() private sessions: Array<{ id: string; label: string; tabs: number }> = [];
+	@state() private hostState: BridgeHostState | undefined;
 	@state() private newHost = "";
 
 	private storageListener = (_changes: Record<string, chrome.storage.StorageChange>, area: string) => {
@@ -59,6 +66,10 @@ export class BridgeTab extends SettingsTab {
 		this.sessions = (await listSessions())
 			.filter((s) => s.id.startsWith("bridge-"))
 			.map((s) => ({ id: s.id, label: s.label, tabs: s.tabIds.length }));
+		// Native-host reachability, published by the service worker (native.ts).
+		// Without this, a dead host looked identical to "no harness connected".
+		const stored = await chrome.storage.session.get("bridge_host_state");
+		this.hostState = (stored as { bridge_host_state?: BridgeHostState }).bridge_host_state;
 	}
 
 	private async decide(request: PendingRequest, decision: "allow_once" | "allow_host" | "deny") {
@@ -101,6 +112,33 @@ export class BridgeTab extends SettingsTab {
 					/>
 					Allow external agents to use the browser
 				</label>
+
+				<div class="space-y-1">
+					<div class="text-sm font-medium text-foreground">Native host</div>
+					${
+						this.hostState === undefined
+							? html`<div class="text-xs text-muted-foreground">Status unknown — the worker reports it shortly after the browser starts.</div>`
+							: this.hostState.connected
+								? html`<div class="text-xs text-green-600 dark:text-green-400">
+										✓ Connected
+										${
+											this.hostState.clients.length > 0
+												? ` — ${this.hostState.clients.map((c) => c.name).join(", ")}`
+												: " — no harness connected yet"
+										}
+									</div>`
+								: html`
+										<div class="p-3 rounded-lg bg-orange-500/10 border border-orange-500/30">
+											<div class="text-sm font-medium text-foreground mb-1">Native host not reachable</div>
+											<div class="text-xs text-muted-foreground">${this.hostState.lastError ?? "The browser could not spawn the bridge host."}</div>
+											<div class="text-xs text-muted-foreground mt-1">
+												Run <code class="font-mono">sitegeist install</code> in a terminal, then reload the extension
+												(brave://extensions → reload).
+											</div>
+										</div>
+									`
+					}
+				</div>
 
 				<div class="space-y-2">
 					<div class="text-sm font-medium text-foreground">Site access</div>

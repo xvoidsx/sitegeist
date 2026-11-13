@@ -13,7 +13,26 @@ import { Toast } from "../components/Toast.js";
 import { getSitegeistStorage } from "../storage/app-storage.js";
 import { syncCustomProviderCorsRules } from "../utils/custom-provider-cors.js";
 
-/** Manual (model-list) custom provider types supported by the editor. */
+/** Model ids that are not chat models (same filter as src/models/discovery.ts). */
+const NON_CHAT =
+	/embed|embedding|tts|whisper|transcri|audio|dall-e|image|moderation|realtime|rerank|guard|vision-preview-only|davinci|babbage|curie|ada|search|similarity|edit|instruct-preview|computer-use-preview|-preview-\d{4}/i;
+
+/** One-click preset for a local Ollama server. Name is deliberately not "Ollama":
+ * validate() rejects names reserved by built-in providers. */
+const OLLAMA_PRESET = {
+	name: "Ollama Local",
+	type: "openai-completions" as CustomProviderType,
+	baseUrl: "http://localhost:11434/v1",
+	apiKey: "",
+};
+
+interface OpenAIModelListResponse {
+	data?: Array<{
+		id: string;
+		context_length?: number;
+		max_model_len?: number;
+	}>;
+}
 const MANUAL_TYPES: { value: CustomProviderType; label: string }[] = [
 	{ value: "openai-completions", label: "OpenAI Compatible (Chat Completions)" },
 	{ value: "openai-responses", label: "OpenAI Compatible (Responses)" },
@@ -68,6 +87,7 @@ export class CustomProviderEditDialog extends DialogBase {
 	@state() private baseUrl = "";
 	@state() private apiKey = "";
 	@state() private models: ModelRow[] = [emptyModelRow()];
+	@state() private fetchingModels = false;
 
 	protected override modalWidth = "min(720px, 92vw)";
 	protected override modalHeight = "min(760px, 92vh)";
@@ -78,6 +98,17 @@ export class CustomProviderEditDialog extends DialogBase {
 		dialog.onSaveCallback = onSave;
 		document.body.appendChild(dialog);
 		dialog.initializeFromProvider();
+		dialog.open();
+		dialog.requestUpdate();
+	}
+
+	/** Open the dialog pre-filled for a local Ollama server. */
+	static openOllamaPreset(onSave?: () => void) {
+		const dialog = new CustomProviderEditDialog();
+		dialog.provider = undefined;
+		dialog.onSaveCallback = onSave;
+		document.body.appendChild(dialog);
+		dialog.initializeFromOllamaPreset();
 		dialog.open();
 		dialog.requestUpdate();
 	}
@@ -96,6 +127,68 @@ export class CustomProviderEditDialog extends DialogBase {
 			this.baseUrl = "";
 			this.apiKey = "";
 			this.models = [emptyModelRow()];
+		}
+	}
+
+	private initializeFromOllamaPreset() {
+		this.name = OLLAMA_PRESET.name;
+		this.type = OLLAMA_PRESET.type;
+		this.baseUrl = OLLAMA_PRESET.baseUrl;
+		this.apiKey = OLLAMA_PRESET.apiKey;
+		this.models = [emptyModelRow()];
+	}
+
+	/**
+	 * Fetch the model list from an OpenAI-compatible server and fill the Models
+	 * rows with its chat models. Runs in the side panel, so the server must allow
+	 * the extension origin (OLLAMA_ORIGINS for Ollama).
+	 */
+	private async fetchModels() {
+		if (this.fetchingModels) return;
+		if (this.type === "anthropic-messages") {
+			Toast.error(i18n("Model listing is only supported for OpenAI-compatible providers"));
+			return;
+		}
+		const baseUrl = this.baseUrl.trim().replace(/\/+$/, "");
+		if (!baseUrl) {
+			Toast.error(i18n("Please enter a base URL"));
+			return;
+		}
+		this.fetchingModels = true;
+		try {
+			const headers: Record<string, string> = {};
+			if (this.apiKey.trim()) headers.Authorization = `Bearer ${this.apiKey.trim()}`;
+			const response = await fetch(`${baseUrl}/models`, { headers });
+			if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+			const data = (await response.json()) as OpenAIModelListResponse;
+			const rows = (data.data ?? [])
+				.filter((m) => m.id && !NON_CHAT.test(m.id))
+				.map((m): ModelRow => {
+					const contextWindow = m.context_length ?? m.max_model_len ?? 128000;
+					return {
+						id: m.id,
+						name: m.id,
+						contextWindow,
+						maxTokens: 8192,
+						reasoning: false,
+						vision: false,
+					};
+				});
+			if (rows.length === 0) {
+				Toast.error(i18n("No chat models found at this base URL"));
+				return;
+			}
+			this.models = rows;
+			Toast.success(
+				rows.length === 1
+					? i18n("Found 1 model")
+					: i18n("Found {count} models").replace("{count}", rows.length.toString()),
+			);
+		} catch (err) {
+			console.error("Failed to fetch models:", err);
+			Toast.error(i18n("Could not reach the server — check the base URL and OLLAMA_ORIGINS"));
+		} finally {
+			this.fetchingModels = false;
 		}
 	}
 
@@ -337,12 +430,20 @@ export class CustomProviderEditDialog extends DialogBase {
 						<div class="flex flex-col gap-3 mt-2">
 							<div class="flex items-center justify-between">
 								<h3 class="text-sm font-semibold text-foreground">${i18n("Models")}</h3>
-								${Button({
-									variant: "outline",
-									size: "sm",
-									onClick: () => this.addModelRow(),
-									children: i18n("Add Model"),
-								})}
+								<div class="flex gap-2">
+									${Button({
+										variant: "outline",
+										size: "sm",
+										onClick: () => void this.fetchModels(),
+										children: this.fetchingModels ? i18n("Fetching...") : i18n("Fetch models"),
+									})}
+									${Button({
+										variant: "outline",
+										size: "sm",
+										onClick: () => this.addModelRow(),
+										children: i18n("Add Model"),
+									})}
+								</div>
 							</div>
 							${this.models.map((model, index) => this.renderModelRow(model, index))}
 						</div>

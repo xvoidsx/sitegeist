@@ -1,0 +1,91 @@
+# Sitegeist patch 8: stuck notice covers tool calls, thinking persists
+# Package: @mariozechner/pi-web-ui@0.73.1
+# Applies to: pi-web-ui/dist/components/AgentInterface.js, Messages.js, ThinkingBlock.js
+# Rationale: see PATCHES.md #8.
+# Generated 2026-11-13 from the live patched tree vs pristine 0.73.1
+# (scripts/apply-patches.mjs applies these in numeric order).
+#
+--- a/@mariozechner/pi-web-ui/dist/components/AgentInterface.js
++++ b/@mariozechner/pi-web-ui/dist/components/AgentInterface.js
+@@ -31,6 +31,9 @@
+         this._lastStreamActivity = 0;
+         this._stuckTimer = undefined;
+         this._showStuckNotice = false;
++        // Start of the currently running tool call, if any: the notice also
++        // fires when a single tool runs past 30s without completing.
++        this._toolStartAt = undefined;
+         this._handleScroll = (_ev) => {
+             if (!this._scrollContainer)
+                 return;
+@@ -139,7 +142,8 @@
+         // before prompt()); the callback itself checks isStreaming before showing.
+         this._stuckTimer = window.setTimeout(() => {
+             this._stuckTimer = undefined;
+-            if (this.session?.state.isStreaming && Date.now() - this._lastStreamActivity >= 30000) {
++            const toolStuck = this._toolStartAt !== undefined && Date.now() - this._toolStartAt >= 30000;
++            if (this.session?.state.isStreaming && (Date.now() - this._lastStreamActivity >= 30000 || toolStuck)) {
+                 this._showStuckNotice = true;
+                 this.requestUpdate();
+             }
+@@ -151,6 +155,7 @@
+             this._stuckTimer = undefined;
+         }
+         this._showStuckNotice = false;
++        this._toolStartAt = undefined;
+     }
+     setupSessionSubscription() {
+         if (this._unsubscribeSession) {
+@@ -210,6 +215,22 @@
+                     this._noteStreamActivity();
+                     this.requestUpdate();
+                     break;
++                case "tool_execution_start":
++                    // A tool running emits no stream events, so the 30s clock
++                    // would otherwise go stale unnoticed: record the start and
++                    // make sure a timer is armed, so a tool that runs past 30s
++                    // shows the notice instead of spinning silently.
++                    this._toolStartAt = Date.now();
++                    this._armStuckTimer();
++                    this.requestUpdate();
++                    break;
++                case "tool_execution_update":
++                case "tool_execution_end":
++                    // Tool progress counts as activity: the run is moving.
++                    this._toolStartAt = undefined;
++                    this._noteStreamActivity();
++                    this.requestUpdate();
++                    break;
+             }
+         });
+     }
+--- a/@mariozechner/pi-web-ui/dist/components/Messages.js
++++ b/@mariozechner/pi-web-ui/dist/components/Messages.js
+@@ -64,12 +64,16 @@
+     render() {
+         // Render content in the order it appears
+         const orderedParts = [];
++        // A tool call in this message that is still running: keep the
++        // thinking visible while it runs, so the streamed reasoning does not
++        // vanish the moment the tool chip takes over.
++        const anyPending = this.message.content.some((c) => c.type === "toolCall" && (this.pendingToolCalls?.has(c.id) ?? false));
+         for (const chunk of this.message.content) {
+             if (chunk.type === "text" && chunk.text.trim() !== "") {
+                 orderedParts.push(html `<markdown-block .content=${chunk.text}></markdown-block>`);
+             }
+             else if (chunk.type === "thinking" && chunk.thinking.trim() !== "") {
+-                orderedParts.push(html `<thinking-block .content=${chunk.thinking} .isStreaming=${this.isStreaming}></thinking-block>`);
++                orderedParts.push(html `<thinking-block .content=${chunk.thinking} .isStreaming=${this.isStreaming || anyPending}></thinking-block>`);
+             }
+             else if (chunk.type === "toolCall") {
+                 if (!this.hideToolCalls) {
+--- a/@mariozechner/pi-web-ui/dist/components/ThinkingBlock.js
++++ b/@mariozechner/pi-web-ui/dist/components/ThinkingBlock.js
+@@ -37,7 +37,7 @@
+ 					<span class="transition-transform inline-block ${this.isExpanded ? "rotate-90" : ""}">${icon(ChevronRight, "sm")}</span>
+ 					<span class="${shimmerClasses}">Thinking...</span>
+ 				</div>
+-				${this.isExpanded ? html `<markdown-block .content=${this.content} .isThinking=${true}></markdown-block>` : ""}
++				${this.isExpanded || this.isStreaming ? html `<markdown-block .content=${this.content} .isThinking=${true}></markdown-block>` : ""}
+ 			</div>
+ 		`;
+     }

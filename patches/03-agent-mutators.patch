@@ -1,0 +1,67 @@
+# Sitegeist patch 3: pi-agent-core restore pre-0.65 Agent mutators
+# Package: @mariozechner/pi-agent-core@0.73.1
+# Applies to: pi-agent-core/dist/agent.js, pi-agent-core/dist/agent.d.ts
+# Rationale: see PATCHES.md #3.
+# Generated 2026-11-13 from the live patched tree vs pristine 0.73.1
+# (scripts/apply-patches.mjs applies these in numeric order).
+#
+--- a/@mariozechner/pi-agent-core/dist/agent.js
++++ b/@mariozechner/pi-agent-core/dist/agent.js
+@@ -186,6 +186,18 @@
+     hasQueuedMessages() {
+         return this.steeringQueue.hasItems() || this.followUpQueue.hasItems();
+     }
++    // --- sitegeist patch: restore pre-0.65 Agent mutators (removed upstream in
++    // pi-mono 0.65.0 in favor of direct state assignment; implementations verbatim
++    // from pi-mono v0.64.0 packages/agent/src/agent.ts). ---
++    setModel(model) {
++        this._state.model = model;
++    }
++    setThinkingLevel(level) {
++        this._state.thinkingLevel = level;
++    }
++    appendMessage(message) {
++        this._state.messages = [...this._state.messages, message];
++    }
+     /** Active abort signal for the current run, if any. */
+     get signal() {
+         return this.activeRun?.abortController.signal;
+--- a/@mariozechner/pi-agent-core/dist/agent.d.ts
++++ b/@mariozechner/pi-agent-core/dist/agent.d.ts
+@@ -1,5 +1,5 @@
+-import { type ImageContent, type Message, type SimpleStreamOptions, type ThinkingBudgets, type Transport } from "@mariozechner/pi-ai";
+-import type { AfterToolCallContext, AfterToolCallResult, AgentEvent, AgentMessage, AgentState, BeforeToolCallContext, BeforeToolCallResult, StreamFn, ToolExecutionMode } from "./types.js";
++import { type ImageContent, type Message, type Model, type SimpleStreamOptions, type ThinkingBudgets, type Transport } from "@mariozechner/pi-ai";
++import type { AfterToolCallContext, AfterToolCallResult, AgentEvent, AgentMessage, AgentState, BeforeToolCallContext, BeforeToolCallResult, StreamFn, ThinkingLevel, ToolExecutionMode } from "./types.js";
+ type QueueMode = "all" | "one-at-a-time";
+ /** Options for constructing an {@link Agent}. */
+ export interface AgentOptions {
+@@ -86,6 +86,28 @@
+     clearAllQueues(): void;
+     /** Returns true when either queue still contains pending messages. */
+     hasQueuedMessages(): boolean;
++    /**
++     * Set the active model used for future turns.
++     *
++     * Sitegeist patch: restored pi-mono pre-0.65 mutator (v0.64.0
++     * packages/agent/src/agent.ts). Upstream removed it in 0.65.0 in favor of
++     * `agent.state.model = model`.
++     */
++    setModel(model: Model<any>): void;
++    /**
++     * Set the requested reasoning level for future turns.
++     *
++     * Sitegeist patch: restored pi-mono pre-0.65 mutator; upstream removed it
++     * in 0.65.0 in favor of `agent.state.thinkingLevel = level`.
++     */
++    setThinkingLevel(level: ThinkingLevel): void;
++    /**
++     * Append a message to the conversation transcript.
++     *
++     * Sitegeist patch: restored pi-mono pre-0.65 mutator; upstream removed it
++     * in 0.65.0 in favor of `agent.state.messages.push(message)`.
++     */
++    appendMessage(message: AgentMessage): void;
+     /** Active abort signal for the current run, if any. */
+     get signal(): AbortSignal | undefined;
+     /** Abort the current run, if one is active. */

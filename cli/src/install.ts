@@ -119,11 +119,28 @@ export function install(options: { force?: boolean } = {}): InstallResult {
 	return { launcher, written, skipped };
 }
 
+/** The CLI script the launcher execs, or undefined when the launcher is missing/unreadable. */
+function launcherTarget(): string | undefined {
+	try {
+		const text = readFileSync(launcherPath(), "utf8");
+		const quoted = [...text.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+		// Launcher is `exec "<node>" "<script>" host ...` — the script is the second quoted token.
+		return quoted[1];
+	} catch {
+		return undefined;
+	}
+}
+
 /** True when at least one browser has a current manifest. */
 export function isInstalled(): boolean {
 	if (process.platform === "win32") return existsSync(join(homedir(), ".config", "sitegeist", `${NATIVE_HOST_NAME}.json`));
 	const launcher = launcherPath();
 	if (!existsSync(launcher)) return false;
+	// A launcher whose target was deleted (repo removed, link broken) must not
+	// report installed: the host can never spawn, and `sitegeist status` would
+	// claim everything is fine while the bridge is dead.
+	const target = launcherTarget();
+	if (!target || !existsSync(target)) return false;
 	const manifest = manifestFor(launcher);
 	return browserDirs().some((dir) => {
 		const file = join(dir, "NativeMessagingHosts", `${NATIVE_HOST_NAME}.json`);

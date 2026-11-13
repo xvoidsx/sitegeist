@@ -35,6 +35,11 @@ export class CustomProvidersTab extends SettingsTab {
 		CustomProviderEditDialog.open(undefined, () => this.loadProviders());
 	}
 
+	/** Open the edit dialog pre-filled for a local Ollama server. */
+	private addOllama() {
+		CustomProviderEditDialog.openOllamaPreset(() => this.loadProviders());
+	}
+
 	private edit(provider: CustomProvider) {
 		CustomProviderEditDialog.open(provider, () => this.loadProviders());
 	}
@@ -84,9 +89,13 @@ export class CustomProvidersTab extends SettingsTab {
 						<p class="text-sm text-muted-foreground">
 							Add OpenAI- or Anthropic-compatible endpoints (e.g. OpenRouter, Together, or a self-hosted server)
 							by base URL and API key. Defined models appear in the model selector. Keys are stored locally.
+							For a local Ollama server, use Add Ollama (local) and then Fetch models to list what it serves.
 						</p>
 					</div>
-					${Button({ variant: "default", size: "sm", onClick: () => this.add(), children: "Add Provider" })}
+					<div class="flex gap-2 flex-shrink-0">
+						${Button({ variant: "default", size: "sm", onClick: () => this.addOllama(), children: "Add Ollama (local)" })}
+						${Button({ variant: "outline", size: "sm", onClick: () => this.add(), children: "Add Provider" })}
+					</div>
 				</div>
 
 				${

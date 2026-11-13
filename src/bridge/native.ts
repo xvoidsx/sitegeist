@@ -87,6 +87,31 @@ let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 const clients = new Map<string, ClientState>();
 const pendingDecisions = new Map<string, (decision: PermissionDecision) => void>();
 
+/** Native-host reachability, as the panel's Bridge tab shows it. A missing
+ * host used to fail silently (a debug-level line in the worker console);
+ * the panel had no way to tell "no harness connected" from "host not
+ * installed". The worker publishes here; the tab reads it from storage. */
+let hostConnected = false;
+let lastHostError: string | undefined;
+
+function publishHostState(): void {
+	chrome.storage.session
+		.set({
+			bridge_host_state: {
+				connected: hostConnected,
+				lastError: lastHostError ?? null,
+				clients: [...clients.values()].map((c) => ({ clientId: c.clientId, name: c.name })),
+				updatedAt: Date.now(),
+			},
+		})
+		.catch(() => undefined);
+}
+
+/** For the worker side (bridge.debug, future callers): current host state. */
+export function bridgeHostState(): { connected: boolean; lastError?: string } {
+	return { connected: hostConnected, lastError: lastHostError };
+}
+
 function send(message: ExtToHost): void {
 	try {
 		port?.postMessage(message);
@@ -119,11 +144,13 @@ async function onClientConnected(msg: HostClientConnected): Promise<void> {
 	// Sessions open lazily on the first browser call: maintenance clients (status, debug,
 	// reload, allow) never touch tabs and must not leave session records behind.
 	console.log(`[Bridge] client ${msg.clientId} (${state.name}) connected as ${state.sessionKey}`);
+	publishHostState();
 }
 
 async function onClientDisconnected(clientId: string): Promise<void> {
 	const state = clients.get(clientId);
 	clients.delete(clientId);
+	publishHostState();
 	await stopScreencastsOwnedBy(clientId).catch(() => undefined);
 	if (state?.session) {
 		// A session that never opened a tab has nothing to re-adopt; drop it instead of piling up.
@@ -429,7 +456,12 @@ function connect(): void {
 	try {
 		next = chrome.runtime.connectNative(NATIVE_HOST_NAME);
 	} catch (err) {
-		console.debug("[Bridge] connectNative failed:", err);
+		// The host is missing (CLI never installed, or its files were deleted):
+		// warn, not debug — this is actionable, and the panel shows it.
+		hostConnected = false;
+		lastHostError = err instanceof Error ? err.message : String(err);
+		console.warn("[Bridge] native host not reachable — run `sitegeist install`, then reload the extension:", err);
+		publishHostState();
 		scheduleReconnect();
 		return;
 	}
@@ -438,7 +470,17 @@ function connect(): void {
 	next.onDisconnect.addListener(() => {
 		const reason = chrome.runtime.lastError?.message ?? "closed";
 		// "Specified native messaging host not found" means the CLI installer has not run yet.
-		console.debug("[Bridge] native host disconnected:", reason);
+		hostConnected = false;
+		lastHostError = reason;
+		if (reason.includes("not found")) {
+			console.warn(
+				"[Bridge] native host disconnected (host not found) — run `sitegeist install`, then reload the extension:",
+				reason,
+			);
+		} else {
+			console.debug("[Bridge] native host disconnected:", reason);
+		}
+		publishHostState();
 		if (port === next) port = undefined;
 		for (const state of clients.values()) void state.session?.suspend();
 		clients.clear();
@@ -447,6 +489,9 @@ function connect(): void {
 	});
 	reconnectDelay = RECONNECT_MIN_MS;
 	trace("native port connected");
+	hostConnected = true;
+	lastHostError = undefined;
+	publishHostState();
 	send({
 		type: "hello",
 		version: chrome.runtime.getManifest().version,

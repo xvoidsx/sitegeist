@@ -1,0 +1,18 @@
+# Sitegeist patch 2: pi-ai honor compat.omitMaxTokens
+# Package: @mariozechner/pi-ai@0.73.1
+# Applies to: pi-ai/dist/providers/openai-completions.js
+# Rationale: see PATCHES.md #2.
+# Generated 2026-11-13 from the live patched tree vs pristine 0.73.1
+# (scripts/apply-patches.mjs applies these in numeric order).
+#
+--- a/@mariozechner/pi-ai/dist/providers/openai-completions.js
++++ b/@mariozechner/pi-ai/dist/providers/openai-completions.js
+@@ -398,7 +398,7 @@
+     if (compat.supportsStore) {
+         params.store = false;
+     }
+-    if (options?.maxTokens) {
++    if (options?.maxTokens && !model.compat?.omitMaxTokens) {
+         if (compat.maxTokensField === "max_tokens") {
+             params.max_tokens = options.maxTokens;
+         }

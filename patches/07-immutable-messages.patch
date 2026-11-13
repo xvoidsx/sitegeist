@@ -1,0 +1,33 @@
+# Sitegeist patch 7: pi-agent-core immutable message completion
+# Package: @mariozechner/pi-agent-core@0.73.1
+# Applies to: pi-agent-core/dist/agent.js
+# Rationale: see PATCHES.md #7.
+# Generated 2026-11-13 from the live patched tree vs pristine 0.73.1
+# (scripts/apply-patches.mjs applies these in numeric order).
+#
+--- a/@mariozechner/pi-agent-core/dist/agent.js
++++ b/@mariozechner/pi-agent-core/dist/agent.js
+@@ -350,7 +350,7 @@
+             errorMessage: error instanceof Error ? error.message : String(error),
+             timestamp: Date.now(),
+         };
+-        this._state.messages.push(failureMessage);
++        this._state.messages = [...this._state.messages, failureMessage];
+         this._state.errorMessage = failureMessage.errorMessage;
+         await this.processEvents({ type: "agent_end", messages: [failureMessage] });
+     }
+@@ -380,8 +380,13 @@
+                 this._state.streamingMessage = undefined;
+                 // Optimistic append (AgentInterface.sendMessage) already put this
+                 // exact message object in state.messages; don't add it twice.
++                // Assign a new array instead of push: Lit lists bound to
++                // state.messages only re-render on a reference change, so a
++                // same-reference push left tool results (and failure messages)
++                // invisible — a "Navigating to…" chip would spin forever even
++                // though the tool had returned.
+                 if (!this._state.messages.includes(event.message)) {
+-                    this._state.messages.push(event.message);
++                    this._state.messages = [...this._state.messages, event.message];
+                 }
+                 break;
+             case "tool_execution_start": {

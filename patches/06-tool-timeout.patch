@@ -1,0 +1,80 @@
+# Sitegeist patch 6: pi-agent-core bound tool execution (300s timeout + abort race)
+# Package: @mariozechner/pi-agent-core@0.73.1
+# Applies to: pi-agent-core/dist/agent-loop.js
+# Rationale: see PATCHES.md #6.
+# Generated 2026-11-13 from the live patched tree vs pristine 0.73.1
+# (scripts/apply-patches.mjs applies these in numeric order).
+#
+--- a/@mariozechner/pi-agent-core/dist/agent-loop.js
++++ b/@mariozechner/pi-agent-core/dist/agent-loop.js
+@@ -369,17 +369,62 @@
+         };
+     }
+ }
++/** A tool that never settles must not wedge the run (or ignore Stop). */
++const TOOL_TIMEOUT_MS = 300000;
+ async function executePreparedToolCall(prepared, signal, emit) {
+     const updateEvents = [];
+     try {
+-        const result = await prepared.tool.execute(prepared.toolCall.id, prepared.args, signal, (partialResult) => {
+-            updateEvents.push(Promise.resolve(emit({
+-                type: "tool_execution_update",
+-                toolCallId: prepared.toolCall.id,
+-                toolName: prepared.toolCall.name,
+-                args: prepared.toolCall.arguments,
+-                partialResult,
+-            })));
++        // Race the tool against its own timeout and the run's abort signal:
++        // a tool whose promise never settles (a page primitive that never
++        // resolves, a stream that never closes) used to hang the run forever
++        // with the composer locked and Stop dead, because the loop awaited it
++        // with no bound and abort only flips a signal the tool may not watch.
++        // On timeout or abort the error becomes an error tool result, so the
++        // run continues to a clean ending instead of spinning. The underlying
++        // tool promise is left to finish on its own; its outcome is discarded.
++        const result = await new Promise((resolve, reject) => {
++            let settled = false;
++            const timer = setTimeout(() => {
++                if (settled) return;
++                settled = true;
++                reject(new Error(`Tool ${prepared.toolCall.name} timed out after ${TOOL_TIMEOUT_MS / 1000}s`));
++            }, TOOL_TIMEOUT_MS);
++            const onAbort = () => {
++                if (settled) return;
++                settled = true;
++                clearTimeout(timer);
++                reject(new Error("Aborted"));
++            };
++            if (signal?.aborted) {
++                clearTimeout(timer);
++                reject(new Error("Aborted"));
++                return;
++            }
++            signal?.addEventListener("abort", onAbort, { once: true });
++            prepared.tool.execute(prepared.toolCall.id, prepared.args, signal, (partialResult) => {
++                updateEvents.push(Promise.resolve(emit({
++                    type: "tool_execution_update",
++                    toolCallId: prepared.toolCall.id,
++                    toolName: prepared.toolCall.name,
++                    args: prepared.toolCall.arguments,
++                    partialResult,
++                })));
++            }).then(
++                (value) => {
++                    if (settled) return;
++                    settled = true;
++                    clearTimeout(timer);
++                    signal?.removeEventListener("abort", onAbort);
++                    resolve(value);
++                },
++                (err) => {
++                    if (settled) return;
++                    settled = true;
++                    clearTimeout(timer);
++                    signal?.removeEventListener("abort", onAbort);
++                    reject(err);
++                },
++            );
+         });
+         await Promise.all(updateEvents);
+         return { result, isError: false };

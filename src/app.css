@@ -160,3 +160,132 @@ body {
 	backdrop-filter: blur(10px);
 	max-width: 100%;
 }
+
+/* nightshadeNeon (xvoidsx): dark violet base, neon pink primary, cyan
+   secondary, green for success/live states. Overrides the mini-lit default
+   theme tokens for both :root and .dark so the side panel and settings
+   dialogs always render in nightshadeNeon regardless of the theme toggle.
+   Anchors: pink #ff10f0, cyan #00ffff, green #39ff14. */
+:root,
+.dark {
+	color-scheme: dark;
+	--background: #0d001a;
+	--foreground: #f3edff;
+	--card: #1a0033;
+	--card-foreground: #f3edff;
+	--popover: #1a0033;
+	--popover-foreground: #f3edff;
+	--primary: #ff10f0;
+	--primary-foreground: #0d001a;
+	--secondary: #00ffff;
+	--secondary-foreground: #0d001a;
+	--muted: #230040;
+	--muted-foreground: #b39ddb;
+	--accent: #2a0a4a;
+	--accent-foreground: #00ffff;
+	--destructive: #ff3355;
+	--destructive-foreground: #ffffff;
+	--border: #3d1a63;
+	--input: #2a0a4a;
+	--ring: #ff10f0;
+	--chart-1: #ff10f0;
+	--chart-2: #00ffff;
+	--chart-3: #39ff14;
+	--chart-4: #b967ff;
+	--chart-5: #ff5ce1;
+	--sidebar: #120024;
+	--sidebar-foreground: #f3edff;
+	--sidebar-primary: #ff10f0;
+	--sidebar-primary-foreground: #0d001a;
+	--sidebar-accent: #230040;
+	--sidebar-accent-foreground: #00ffff;
+	--sidebar-border: #3d1a63;
+	--sidebar-ring: #ff10f0;
+	/* xvoidsx extra: success / live states. */
+	--success: #39ff14;
+}
+
+/* xvoidsx: welcome tagline fade between rotating lines. */
+@keyframes tagline-fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+.tagline-fade {
+	animation: tagline-fade-in 0.6s ease;
+}
+
+/* xvoidsx: wordmark breathes through the nightshadeNeon palette. Glow only;
+   size, weight, and layout of the h1 are untouched. */
+@keyframes logo-breathe {
+	0%,
+	100% {
+		text-shadow:
+			0 0 12px rgba(255, 16, 240, 0.55),
+			0 0 32px rgba(255, 16, 240, 0.25);
+	}
+	33% {
+		text-shadow:
+			0 0 12px rgba(0, 255, 255, 0.55),
+			0 0 32px rgba(0, 255, 255, 0.25);
+	}
+	66% {
+		text-shadow:
+			0 0 12px rgba(57, 255, 20, 0.5),
+			0 0 32px rgba(57, 255, 20, 0.22);
+	}
+}
+.logo-breathe {
+	animation: logo-breathe 6s ease-in-out infinite;
+}
+
+/* xvoidsx: working-state glow. While the agent is streaming, the panel root
+   carries .panel-working: a thin border cycling the nightshadeNeon palette
+   (border-color animation is proven to run in Chromium) plus a soft inner
+   glow whose opacity pulses. The border is transparent at rest, so turning
+   the glow on/off never shifts layout. The glow IS the working signal, so
+   the "Thinking..." header hides while it is active (the live reasoning
+   content underneath still shows; the header returns, collapsed, when the
+   run ends). */
+.sitegeist-panel-root {
+	position: relative;
+	border: 2px solid transparent;
+}
+@keyframes panel-glow-border {
+	0%,
+	100% {
+		border-color: #ff10f0;
+	}
+	33% {
+		border-color: #00ffff;
+	}
+	66% {
+		border-color: #39ff14;
+	}
+}
+@keyframes panel-glow-pulse {
+	0%,
+	100% {
+		opacity: 0.35;
+	}
+	50% {
+		opacity: 0.8;
+	}
+}
+.sitegeist-panel-root.panel-working {
+	animation: panel-glow-border 6s ease-in-out infinite;
+}
+.sitegeist-panel-root.panel-working::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	box-shadow: inset 0 0 28px rgba(255, 16, 240, 0.28);
+	animation: panel-glow-pulse 3s ease-in-out infinite;
+}
+.panel-working .thinking-header {
+	display: none;
+}

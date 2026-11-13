@@ -118,4 +118,9 @@ Ask what they'd like to try or explore next.`,
 		prompt:
 			"Check my last 3 LinkedIn posts for unanswered comments and give me suggestions what I could answer. For each unanswered comment, consider the original post content and the full comment thread context to generate relevant replies. Suggest 2-3 response options with different tones (professional, casual, humorous) so I can pick what fits best.",
 	},
+	{
+		label: "Summarize this page",
+		prompt:
+			"Summarize the page I am currently looking at. Give me the key points as a short bullet list, one sentence on what the page is for, and anything surprising or worth noting. Keep it tight. If the page is a list of search results or a feed, summarize the top items instead.",
+	},
 ];

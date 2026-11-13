@@ -1,0 +1,24 @@
+# Sitegeist patch 4: pi-web-ui labeled Stop button
+# Package: @mariozechner/pi-web-ui@0.73.1
+# Applies to: pi-web-ui/dist/components/MessageEditor.js
+# Rationale: see PATCHES.md #4.
+# Generated 2026-11-13 from the live patched tree vs pristine 0.73.1
+# (scripts/apply-patches.mjs applies these in numeric order).
+#
+--- a/@mariozechner/pi-web-ui/dist/components/MessageEditor.js
++++ b/@mariozechner/pi-web-ui/dist/components/MessageEditor.js
+@@ -333,10 +333,11 @@
+             ? html `
+ 									${Button({
+                 variant: "ghost",
+-                size: "icon",
++                size: "sm",
+                 onClick: this.onAbort,
+-                children: icon(Square, "sm"),
+-                className: "h-8 w-8",
++                title: "Stop generating",
++                children: html `${icon(Square, "sm")}<span class="ml-1">Stop</span>`,
++                className: "h-8",
+             })}
+ 								`
+             : html `

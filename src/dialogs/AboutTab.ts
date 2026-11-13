@@ -4,6 +4,19 @@ import { html, type TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import "../utils/i18n-extension.js";
 
+/** Semver-ish newer-than check ("1.2.10" > "1.2.9"). */
+function isNewerVersion(latest: string, current: string): boolean {
+	const latestParts = latest.split(".").map(Number);
+	const currentParts = current.split(".").map(Number);
+	for (let i = 0; i < Math.max(latestParts.length, currentParts.length); i++) {
+		const l = latestParts[i] || 0;
+		const c = currentParts[i] || 0;
+		if (l > c) return true;
+		if (l < c) return false;
+	}
+	return false;
+}
+
 @customElement("about-tab")
 export class AboutTab extends SettingsTab {
 	@state() private updateAvailable = false;
@@ -20,16 +33,27 @@ export class AboutTab extends SettingsTab {
 		await this.checkForUpdates();
 	}
 
+	// xvoidsx fork: check our own releases, not upstream's version.json
+	// (which reports 0.6.x and whose Update button installed upstream over
+	// this fork). The fork has no releases yet, so a 404 means "nothing
+	// newer published" — show up to date, never a false update.
 	private async checkForUpdates() {
 		try {
-			const response = await fetch("https://sitegeist.ai/uploads/version.json", {
+			const response = await fetch("https://api.github.com/repos/xvoidsx/sitegeist/releases/latest", {
 				cache: "no-cache",
 			});
-			const data = await response.json();
 			const currentVersion = chrome.runtime.getManifest().version;
-
-			this.latestVersion = data.version;
-			this.updateAvailable = data.version !== currentVersion;
+			if (!response.ok) {
+				this.updateAvailable = false;
+				this.checking = false;
+				return;
+			}
+			const data = await response.json();
+			const latestVersion = String(data.tag_name || "").replace(/^v/, "");
+			this.latestVersion = latestVersion;
+			// Proper newer-than comparison: a local build ahead of the latest
+			// release (normal during development) must not show as an update.
+			this.updateAvailable = latestVersion !== "" && isNewerVersion(latestVersion, currentVersion);
 			this.checking = false;
 		} catch (err) {
 			console.warn("[AboutTab] Failed to check for updates:", err);
@@ -39,7 +63,7 @@ export class AboutTab extends SettingsTab {
 	}
 
 	private openUpdatePage() {
-		window.open("https://sitegeist.ai/install.html#updating", "_blank");
+		window.open("https://github.com/xvoidsx/sitegeist/releases", "_blank");
 	}
 
 	render(): TemplateResult {
@@ -99,11 +123,7 @@ export class AboutTab extends SettingsTab {
 
 				<div class="pt-4 space-y-2">
 					<div class="text-xs text-muted-foreground space-x-3">
-						<a href="https://sitegeist.ai" target="_blank" class="text-primary hover:underline">${i18n("Website")}</a>
-						<span>·</span>
-						<a href="https://sitegeist.ai/imprint" target="_blank" class="text-primary hover:underline">${i18n("Imprint")}</a>
-						<span>·</span>
-						<a href="https://sitegeist.ai/privacy" target="_blank" class="text-primary hover:underline">${i18n("Privacy")}</a>
+						<a href="https://github.com/xvoidsx/sitegeist" target="_blank" class="text-primary hover:underline">${i18n("Website")}</a>
 					</div>
 				</div>
 			</div>

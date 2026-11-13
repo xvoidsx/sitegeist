@@ -6,7 +6,7 @@ import { type Static, Type } from "@sinclair/typebox";
 import { html } from "lit";
 import { Loader2 } from "lucide";
 import { getCurrentBrowserSession } from "../browser/current.js";
-import { goBack, goForward, navigateTab, waitForLoad } from "../browser/page.js";
+import { goBack, goForward, navigateTabDetailed, waitForLoad } from "../browser/page.js";
 import { SkillPill } from "../components/SkillPill.js";
 import { TabPill } from "../components/TabPill.js";
 import { NAVIGATE_TOOL_DESCRIPTION } from "../prompts/prompts.js";
@@ -38,10 +38,15 @@ const navigateSchema = Type.Object({
 	url: Type.Optional(
 		Type.String({
 			description:
-				'URL to open in the current tab (or a new tab if newTab is true). "back" and "forward" move in history.',
+				'URL to open in the current tab. "back" and "forward" move in history. The current tab is reused unless newTab is true.',
 		}),
 	),
-	newTab: Type.Optional(Type.Boolean({ description: "Open the URL in a new tab instead of the current tab" })),
+	newTab: Type.Optional(
+		Type.Boolean({
+			description:
+				"Open the URL in a new tab. ONLY set this when the user explicitly asked for a new tab (e.g. 'in a new tab').",
+		}),
+	),
 	listTabs: Type.Optional(Type.Boolean({ description: "List the tabs this session owns" })),
 	switchToTab: Type.Optional(
 		Type.Number({
@@ -127,6 +132,7 @@ export class NavigateTool implements AgentTool<typeof navigateSchema, NavigateRe
 		try {
 			let tabId: number;
 			let finalUrl: string;
+			let timedOut = false;
 			if (args.url === "back" || args.url === "forward") {
 				const tab = await session.requireCurrentTab();
 				tabId = tab.id!;
@@ -134,21 +140,39 @@ export class NavigateTool implements AgentTool<typeof navigateSchema, NavigateRe
 				else await goForward(tabId);
 				finalUrl = (await chrome.tabs.get(tabId)).url ?? "";
 			} else {
-				const current = args.newTab ? undefined : await session.currentTab();
+				// Default: reuse the tab the user is looking at. A new tab opens
+				// only when the user explicitly asked for one (args.newTab).
+				// Fall back to the panel's home tab when the session has no
+				// current tab yet; only conjure a new tab when there is no tab
+				// at all to navigate.
+				let current = args.newTab ? undefined : await session.currentTab();
+				if (current?.id === undefined && !args.newTab) {
+					const home = await session.homeTab();
+					if (home?.id !== undefined) {
+						await session.adopt(home.id);
+						current = home;
+					}
+				}
 				if (current?.id !== undefined) {
 					tabId = current.id;
-					finalUrl = await navigateTab(tabId, args.url, { signal });
+					// Resolves on DOMContentLoaded (never waits for network
+					// idle) with a hard timeout; on timeout the tab's current
+					// URL is reported and the model is told it may still be
+					// loading, so the run continues instead of hanging.
+					const detailed = await navigateTabDetailed(tabId, args.url, { signal });
+					finalUrl = detailed.url;
+					timedOut = detailed.timedOut;
 				} else {
 					// New tab (asked for, or the session has none yet): open it on the URL directly.
 					const tab = await session.createTab(args.url);
 					tabId = tab.id!;
-					await waitForLoad(tabId, 20000);
+					timedOut = !(await waitForLoad(tabId, 15000));
 					finalUrl = (await chrome.tabs.get(tabId)).url ?? args.url;
 				}
 			}
 			const prefix = args.newTab
 				? `Opened in new tab: ${finalUrl} (tab ${tabId})`
-				: `Navigated to: ${finalUrl} (tab ${tabId})`;
+				: `Navigated to: ${finalUrl} (tab ${tabId})${timedOut ? " (page still loading)" : ""}`;
 			return this.describeTab(tabId, prefix);
 		} finally {
 			markNavigationEnd();

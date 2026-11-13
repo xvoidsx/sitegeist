@@ -1,0 +1,46 @@
+# Sitegeist patch 1: pi-ai runtime model discovery (registerModels)
+# Package: @mariozechner/pi-ai@0.73.1
+# Applies to: pi-ai/dist/models.js, pi-ai/dist/models.d.ts
+# Rationale: see PATCHES.md #1.
+# Generated 2026-11-13 from the live patched tree vs pristine 0.73.1
+# (scripts/apply-patches.mjs applies these in numeric order).
+#
+--- a/@mariozechner/pi-ai/dist/models.js
++++ b/@mariozechner/pi-ai/dist/models.js
+@@ -68,4 +68,23 @@
+         return false;
+     return a.id === b.id && a.provider === b.provider;
+ }
+-//# sourceMappingURL=models.js.map
+\ No newline at end of file
++//# sourceMappingURL=models.js.map// --- sitegeist patch: runtime model discovery (from 0xSero/sitegeist README) ---
++export function registerModels(provider, models) {
++    const providerModels = new Map();
++    for (const model of models) providerModels.set(model.id, model);
++    modelRegistry.set(provider, providerModels);
++}
++export function resetProviderModels(provider) {
++    const generated = MODELS[provider];
++    if (!generated) {
++        modelRegistry.delete(provider);
++        return;
++    }
++    const providerModels = new Map();
++    for (const [id, model] of Object.entries(generated)) providerModels.set(id, model);
++    modelRegistry.set(provider, providerModels);
++}
++export function getGeneratedModels(provider) {
++    const generated = MODELS[provider];
++    return generated ? Object.values(generated) : [];
++}
+--- a/@mariozechner/pi-ai/dist/models.d.ts
++++ b/@mariozechner/pi-ai/dist/models.d.ts
+@@ -15,4 +15,6 @@
+  */
+ export declare function modelsAreEqual<TApi extends Api>(a: Model<TApi> | null | undefined, b: Model<TApi> | null | undefined): boolean;
+ export {};
+-//# sourceMappingURL=models.d.ts.map
+\ No newline at end of file
++//# sourceMappingURL=models.d.ts.mapexport declare function registerModels(provider: string, models: Model<Api>[]): void;
++export declare function resetProviderModels(provider: string): void;
++export declare function getGeneratedModels(provider: string): Model<Api>[];

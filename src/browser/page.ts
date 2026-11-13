@@ -36,7 +36,7 @@ export async function navigateTabDetailed(
 	url: string,
 	options: NavigateOptions = {},
 ): Promise<{ url: string; timedOut: boolean }> {
-	const { signal, timeoutMs = 20000, waitUntil = "domcontentloaded" } = options;
+	const { signal, timeoutMs = 15000, waitUntil = "domcontentloaded" } = options;
 	if (signal?.aborted) throw new Error("Aborted");
 	return new Promise<{ url: string; timedOut: boolean }>((resolve, reject) => {
 		let committed = false;

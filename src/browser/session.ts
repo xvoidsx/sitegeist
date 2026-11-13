@@ -563,6 +563,17 @@ export class BrowserSession {
 	}
 
 	/**
+	 * The tab the panel is bound to (?tabId=), if it still exists. Navigation
+	 * falls back to it when the session has no current tab, so a plain
+	 * "go to <site>" reuses the tab the user is looking at instead of
+	 * spawning a new one.
+	 */
+	async homeTab(): Promise<chrome.tabs.Tab | undefined> {
+		if (this.state.homeTabId === undefined) return undefined;
+		return tabExists(this.state.homeTabId);
+	}
+
+	/**
 	 * Current tab for tools that need a page. An empty session does not get a blank tab
 	 * conjured up (those piled up as empty tabs); the model is told to navigate first.
 	 */

@@ -46,6 +46,13 @@ declare module "@mariozechner/mini-lit" {
 		"That name is reserved by a built-in provider. Choose a different name.": string;
 		Vision: string;
 		"e.g. OpenRouter, Together, My Server": string;
+		"Fetch models": string;
+		"Fetching...": string;
+		"Found 1 model": string;
+		"Found {count} models": string;
+		"Model listing is only supported for OpenAI-compatible providers": string;
+		"No chat models found at this base URL": string;
+		"Could not reach the server — check the base URL and OLLAMA_ORIGINS": string;
 		"Permission request failed": string;
 		"JavaScript Execution Permission Required": string;
 		"This extension needs permission to execute JavaScript code on web pages": string;
@@ -157,6 +164,15 @@ const sitegeistTranslations = {
 			"That name is reserved by a built-in provider. Choose a different name.",
 		Vision: "Vision",
 		"e.g. OpenRouter, Together, My Server": "e.g. OpenRouter, Together, My Server",
+		"Fetch models": "Fetch models",
+		"Fetching...": "Fetching...",
+		"Found 1 model": "Found 1 model",
+		"Found {count} models": "Found {count} models",
+		"Model listing is only supported for OpenAI-compatible providers":
+			"Model listing is only supported for OpenAI-compatible providers",
+		"No chat models found at this base URL": "No chat models found at this base URL",
+		"Could not reach the server — check the base URL and OLLAMA_ORIGINS":
+			"Could not reach the server — check the base URL and OLLAMA_ORIGINS",
 		"Permission request failed": "Permission request failed",
 		"JavaScript Execution Permission Required": "JavaScript Execution Permission Required",
 		"This extension needs permission to execute JavaScript code on web pages":
@@ -276,6 +292,15 @@ const sitegeistTranslations = {
 			"That name is reserved by a built-in provider. Choose a different name.",
 		Vision: "Vision",
 		"e.g. OpenRouter, Together, My Server": "e.g. OpenRouter, Together, My Server",
+		"Fetch models": "Fetch models",
+		"Fetching...": "Fetching...",
+		"Found 1 model": "Found 1 model",
+		"Found {count} models": "Found {count} models",
+		"Model listing is only supported for OpenAI-compatible providers":
+			"Model listing is only supported for OpenAI-compatible providers",
+		"No chat models found at this base URL": "No chat models found at this base URL",
+		"Could not reach the server — check the base URL and OLLAMA_ORIGINS":
+			"Could not reach the server — check the base URL and OLLAMA_ORIGINS",
 		"Permission request failed": "Berechtigungsanfrage fehlgeschlagen",
 		"JavaScript Execution Permission Required": "JavaScript-Ausführungsberechtigung erforderlich",
 		"This extension needs permission to execute JavaScript code on web pages":

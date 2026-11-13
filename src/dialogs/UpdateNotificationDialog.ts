@@ -34,7 +34,7 @@ export class UpdateNotificationDialog extends DialogBase {
 	}
 
 	private handleUpdate() {
-		window.open("https://sitegeist.ai/install#updating", "_blank");
+		window.open("https://github.com/xvoidsx/sitegeist/releases", "_blank");
 		// Don't close - keep blocking until extension is actually updated and restarted
 	}
 

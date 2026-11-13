@@ -1,0 +1,194 @@
+# Sitegeist patch 5: optimistic user message, stuck-run notice, failure log
+# Package: @mariozechner/pi-web-ui + @mariozechner/pi-agent-core@0.73.1
+# Applies to: pi-web-ui/dist/components/AgentInterface.js, pi-agent-core/dist/agent.js
+# Rationale: see PATCHES.md #5.
+# Generated 2026-11-13 from the live patched tree vs pristine 0.73.1
+# (scripts/apply-patches.mjs applies these in numeric order).
+#
+--- a/@mariozechner/pi-web-ui/dist/components/AgentInterface.js
++++ b/@mariozechner/pi-web-ui/dist/components/AgentInterface.js
+@@ -26,6 +26,11 @@
+         this._autoScroll = true;
+         this._lastScrollTop = 0;
+         this._lastClientHeight = 0;
++        // Stuck-run notice: armed while streaming, fires after 30s with no
++        // stream activity (see _noteStreamActivity / _armStuckTimer).
++        this._lastStreamActivity = 0;
++        this._stuckTimer = undefined;
++        this._showStuckNotice = false;
+         this._handleScroll = (_ev) => {
+             if (!this._scrollContainer)
+                 return;
+@@ -103,6 +108,7 @@
+     }
+     disconnectedCallback() {
+         super.disconnectedCallback();
++        this._clearStuckTimer();
+         // Clean up observers and listeners
+         if (this._resizeObserver) {
+             this._resizeObserver.disconnect();
+@@ -116,11 +122,42 @@
+             this._unsubscribeSession = undefined;
+         }
+     }
++    // Stuck-run notice bookkeeping: any stream event resets the 30s clock.
++    _noteStreamActivity() {
++        this._lastStreamActivity = Date.now();
++        if (this._showStuckNotice) {
++            this._showStuckNotice = false;
++        }
++        this._armStuckTimer();
++    }
++    _armStuckTimer() {
++        if (this._stuckTimer !== undefined) {
++            clearTimeout(this._stuckTimer);
++            this._stuckTimer = undefined;
++        }
++        // Arm even before the run flips isStreaming on (sendMessage calls this
++        // before prompt()); the callback itself checks isStreaming before showing.
++        this._stuckTimer = window.setTimeout(() => {
++            this._stuckTimer = undefined;
++            if (this.session?.state.isStreaming && Date.now() - this._lastStreamActivity >= 30000) {
++                this._showStuckNotice = true;
++                this.requestUpdate();
++            }
++        }, 30000);
++    }
++    _clearStuckTimer() {
++        if (this._stuckTimer !== undefined) {
++            clearTimeout(this._stuckTimer);
++            this._stuckTimer = undefined;
++        }
++        this._showStuckNotice = false;
++    }
+     setupSessionSubscription() {
+         if (this._unsubscribeSession) {
+             this._unsubscribeSession();
+             this._unsubscribeSession = undefined;
+         }
++        this._clearStuckTimer();
+         if (!this.session)
+             return;
+         // Set default streamFn with proxy support if not already set
+@@ -143,6 +180,7 @@
+                 case "turn_start":
+                 case "turn_end":
+                 case "agent_start":
++                    this._noteStreamActivity();
+                     this.requestUpdate();
+                     break;
+                 case "message_end":
+@@ -151,6 +189,7 @@
+                     if (this._streamingContainer) {
+                         this._streamingContainer.setMessage(null, true);
+                     }
++                    this._noteStreamActivity();
+                     this.requestUpdate();
+                     break;
+                 case "agent_end":
+@@ -159,6 +198,7 @@
+                         this._streamingContainer.isStreaming = false;
+                         this._streamingContainer.setMessage(null, true);
+                     }
++                    this._clearStuckTimer();
+                     this.requestUpdate();
+                     break;
+                 case "message_update":
+@@ -167,6 +207,7 @@
+                         this._streamingContainer.isStreaming = isStreaming;
+                         this._streamingContainer.setMessage(ev.message, !isStreaming);
+                     }
++                    this._noteStreamActivity();
+                     this.requestUpdate();
+                     break;
+             }
+@@ -203,18 +244,37 @@
+         this._messageEditor.value = "";
+         this._messageEditor.attachments = [];
+         this._autoScroll = true; // Enable auto-scroll when sending a message
+-        // Compose message with attachments if any
+-        if (attachments && attachments.length > 0) {
+-            const message = {
++        // Compose the message once and show it immediately: the agent loop
++        // re-emits it on message_end, and processEvents dedupes by reference
++        // (pi-agent-core patch, PATCHES.md #5), so it can never appear twice.
++        const message = attachments && attachments.length > 0
++            ? {
+                 role: "user-with-attachments",
+                 content: input,
+                 attachments,
+                 timestamp: Date.now(),
++            }
++            : {
++                role: "user",
++                content: [{ type: "text", text: input }],
++                timestamp: Date.now(),
+             };
++        this.session.appendMessage(message);
++        this._lastStreamActivity = Date.now();
++        this._showStuckNotice = false;
++        this._armStuckTimer();
++        this.requestUpdate();
++        try {
+             await this.session?.prompt(message);
+         }
+-        else {
+-            await this.session?.prompt(input);
++        catch (err) {
++            // The run never started; don't leave an orphaned user message behind.
++            const idx = this.session.state.messages.indexOf(message);
++            if (idx >= 0)
++                this.session.state.messages.splice(idx, 1);
++            this._clearStuckTimer();
++            this.requestUpdate();
++            throw err;
+         }
+     }
+     renderMessages() {
+@@ -248,6 +308,21 @@
+ 					.toolResultsById=${toolResultsById}
+ 					.onCostClick=${this.onCostClick}
+ 				></streaming-message-container>
++
++				<!-- Stuck-run notice: streaming with no events for 30s -->
++				${state.isStreaming && this._showStuckNotice
++            ? html `
++						<div class="mt-3 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
++							Still waiting for a response — the model may still be loading. You can stop and try again.
++							<button
++								class="ml-2 font-medium text-foreground underline underline-offset-2 cursor-pointer"
++								@click=${() => this.session?.abort()}
++							>
++								Stop
++							</button>
++						</div>
++					`
++            : ""}
+ 			</div>
+ 		`;
+     }
+--- a/@mariozechner/pi-agent-core/dist/agent.js
++++ b/@mariozechner/pi-agent-core/dist/agent.js
+@@ -336,6 +336,9 @@
+         }
+     }
+     async handleRunFailure(error, aborted) {
++        // A failed run already surfaces as an error message in the transcript;
++        // log it too so a silent-looking stall is diagnosable from the console.
++        console.error("[Agent] run failed:", error);
+         const failureMessage = {
+             role: "assistant",
+             content: [{ type: "text", text: "" }],
+@@ -375,7 +378,11 @@
+                 break;
+             case "message_end":
+                 this._state.streamingMessage = undefined;
+-                this._state.messages.push(event.message);
++                // Optimistic append (AgentInterface.sendMessage) already put this
++                // exact message object in state.messages; don't add it twice.
++                if (!this._state.messages.includes(event.message)) {
++                    this._state.messages.push(event.message);
++                }
+                 break;
+             case "tool_execution_start": {
+                 const pendingToolCalls = new Set(this._state.pendingToolCalls);

@@ -54,9 +54,9 @@ const buildOptions = {
 		// Bundle the sibling pi-mono packages straight from TypeScript source. Their
 		// published entrypoints are dist/ builds that require the tsgo toolchain; pointing
 		// esbuild at src/ lets us build without pre-compiling them.
-		"@mariozechner/pi-ai": join(packageRoot, "../pi-mono/packages/ai/src/index.ts"),
-		"@mariozechner/pi-agent-core": join(packageRoot, "../pi-mono/packages/agent/src/index.ts"),
-		"@mariozechner/pi-web-ui": join(packageRoot, "../pi-mono/packages/web-ui/src/index.ts"),
+		"@mariozechner/pi-ai": join(packageRoot, "node_modules/@mariozechner/pi-ai"),
+		"@mariozechner/pi-agent-core": join(packageRoot, "node_modules/@mariozechner/pi-agent-core"),
+		"@mariozechner/pi-web-ui": join(packageRoot, "node_modules/@mariozechner/pi-web-ui"),
 		lit: join(packageRoot, "node_modules/lit"),
 		"lit/decorators.js": join(packageRoot, "node_modules/lit/decorators.js"),
 		"lit/directives/class-map.js": join(packageRoot, "node_modules/lit/directives/class-map.js"),
