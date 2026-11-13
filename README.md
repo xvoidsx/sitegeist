@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="media/hero.png" alt="Sitegeist" width="400">
+  <img width="406" height="412" alt="image" src="https://github.com/user-attachments/assets/ea2e72cb-69a5-42d6-a853-e51fb1eb807f" />
 </p>
 
 > Your machine, your model, your browser — a ghost in the sidebar that works for you,
