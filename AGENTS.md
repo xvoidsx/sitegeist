@@ -43,15 +43,6 @@ When the user asks to do a release:
 
 The script bumps the version in `static/manifest.chrome.json`, finalizes the changelog, commits, tags, and pushes. GitHub Actions builds and publishes the release.
 
-## Updating the Website
-When the user asks to update the website:
-```bash
-cd site && ./run.sh deploy
-```
-Requires SSH access to `slayer.marioslab.io`.
-
-The site is static HTML (no backend). Source is in `site/src/frontend/`.
-
 ## Style
 - No emojis in commits, code, or comments
 - No fluff or cheerful filler text
