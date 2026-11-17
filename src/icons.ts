@@ -2,7 +2,11 @@ import { icon } from "@mariozechner/mini-lit";
 import { Button } from "@mariozechner/mini-lit/dist/Button.js";
 import { html, render } from "lit";
 import { ArrowLeft, Download } from "lucide";
-import "./components/OrbAnimation.js";
+
+// nightshadeNeon palette (see wired/waybar/style.css in navi)
+const NEON_CYAN = "#00ffff";
+const NEON_MAGENTA = "#ff10f0";
+const NEON_DARK = "#0a050b";
 
 interface IconSize {
 	size: number;
@@ -15,77 +19,102 @@ const ICON_SIZES: IconSize[] = [
 	{ size: 128, name: "icon-128.png" },
 ];
 
-function captureOrbAsImage(size: number): Promise<Blob> {
+/** Classic ghost silhouette: domed top, straight sides, scalloped hem. */
+function traceGhostPath(ctx: CanvasRenderingContext2D, s: number) {
+	const x0 = s * 0.1875;
+	const x1 = s * 0.8125;
+	const top = s * 0.137;
+	const midY = s * 0.41;
+	const hemY = s * 0.781;
+	const r = (x1 - x0) / 8;
+
+	ctx.beginPath();
+	ctx.moveTo(x0, hemY);
+	ctx.lineTo(x0, midY);
+	// Dome: left point over the top to the right point
+	ctx.ellipse(s / 2, midY, (x1 - x0) / 2, midY - top, 0, Math.PI, 0);
+	ctx.lineTo(x1, hemY);
+	// Scalloped hem: four bumps, right to left
+	for (let i = 0; i < 4; i++) {
+		const cx = x1 - r - i * 2 * r;
+		ctx.arc(cx, hemY, r, 0, Math.PI, false);
+	}
+	ctx.closePath();
+}
+
+function drawEyes(ctx: CanvasRenderingContext2D, s: number) {
+	ctx.fillStyle = NEON_DARK;
+	for (const ex of [s * 0.383, s * 0.617]) {
+		ctx.beginPath();
+		ctx.ellipse(ex, s * 0.449, s * 0.051, s * 0.074, 0, 0, Math.PI * 2);
+		ctx.fill();
+	}
+}
+
+/** Draw the gradient ghost (cyan -> magenta, dark eyes, magenta glow). */
+function drawGhost(ctx: CanvasRenderingContext2D, s: number) {
+	const top = s * 0.137;
+	const hemY = s * 0.781;
+	const r = s * 0.078125;
+
+	const grad = ctx.createLinearGradient(0, top, 0, hemY + r);
+	grad.addColorStop(0, NEON_CYAN);
+	grad.addColorStop(1, NEON_MAGENTA);
+
+	// Glow pass: same shape, blurred magenta shadow
+	ctx.save();
+	ctx.shadowColor = NEON_MAGENTA;
+	ctx.shadowBlur = s * 0.05;
+	traceGhostPath(ctx, s);
+	ctx.fillStyle = grad;
+	ctx.fill();
+	ctx.restore();
+
+	// Body pass: sharp gradient fill
+	traceGhostPath(ctx, s);
+	ctx.fillStyle = grad;
+	ctx.fill();
+
+	drawEyes(ctx, s);
+}
+
+function captureGhostAsImage(size: number): Promise<Blob> {
 	return new Promise((resolve, reject) => {
-		// Create a temporary container
-		const container = document.createElement("div");
-		container.style.position = "fixed";
-		container.style.left = "-9999px";
-		container.style.width = `${size * 2}px`; // Render at 2x for better quality
-		container.style.height = `${size * 2}px`;
-		document.body.appendChild(container);
-
-		// Create orb animation element
-		const orb = document.createElement("orb-animation");
-		container.appendChild(orb);
-
-		// Wait for orb to initialize and render a few frames
-		setTimeout(() => {
-			try {
-				// Get the canvas element from the orb
-				const canvas = container.querySelector("canvas");
-				if (!canvas) {
-					throw new Error("Canvas not found in orb animation");
-				}
-
-				// Create a new canvas at the target size
-				const outputCanvas = document.createElement("canvas");
-				outputCanvas.width = size;
-				outputCanvas.height = size;
-				const ctx = outputCanvas.getContext("2d");
-
-				if (!ctx) {
-					throw new Error("Failed to get 2D context");
-				}
-
-				// Crop to center 60% of the orb canvas (the orb is small in the 400x400 space)
-				// Then scale up to fill the icon
-				const cropSize = canvas.width * 0.6; // Take center 60%
-				const cropOffset = (canvas.width - cropSize) / 2;
-
-				// Draw cropped and scaled orb
-				ctx.drawImage(
-					canvas,
-					cropOffset,
-					cropOffset,
-					cropSize,
-					cropSize, // Source: center crop
-					0,
-					0,
-					size,
-					size, // Destination: full icon size
-				);
-
-				// Convert to blob
-				outputCanvas.toBlob(
-					(blob) => {
-						// Cleanup
-						document.body.removeChild(container);
-
-						if (blob) {
-							resolve(blob);
-						} else {
-							reject(new Error("Failed to create blob from canvas"));
-						}
-					},
-					"image/png",
-					1.0,
-				);
-			} catch (error) {
-				document.body.removeChild(container);
-				reject(error);
+		try {
+			// Draw at 2x then downscale for clean edges at small sizes
+			const scale = 2;
+			const big = document.createElement("canvas");
+			big.width = size * scale;
+			big.height = size * scale;
+			const bigCtx = big.getContext("2d");
+			if (!bigCtx) {
+				throw new Error("Failed to get 2D context");
 			}
-		}, 500); // Wait 500ms for animation to start
+			drawGhost(bigCtx, size * scale);
+
+			const outputCanvas = document.createElement("canvas");
+			outputCanvas.width = size;
+			outputCanvas.height = size;
+			const ctx = outputCanvas.getContext("2d");
+			if (!ctx) {
+				throw new Error("Failed to get 2D context");
+			}
+			ctx.drawImage(big, 0, 0, size, size);
+
+			outputCanvas.toBlob(
+				(blob) => {
+					if (blob) {
+						resolve(blob);
+					} else {
+						reject(new Error("Failed to create blob from canvas"));
+					}
+				},
+				"image/png",
+				1.0,
+			);
+		} catch (error) {
+			reject(error);
+		}
 	});
 }
 
@@ -111,7 +140,7 @@ async function generateIcon(iconSize: IconSize) {
 	if (previewEl) previewEl.innerHTML = "";
 
 	try {
-		const blob = await captureOrbAsImage(iconSize.size);
+		const blob = await captureGhostAsImage(iconSize.size);
 
 		// Show preview - scale to fit 64x64 container while maintaining aspect ratio
 		if (previewEl) {
@@ -151,16 +180,20 @@ async function generateAllIcons() {
 	if (generateAllBtn) generateAllBtn.disabled = false;
 }
 
-function createPreviewOrb() {
-	const previewContainer = document.getElementById("orb-preview");
+function createPreviewGhost() {
+	const previewContainer = document.getElementById("ghost-preview");
 	if (!previewContainer) return;
 
-	// Clear existing orb
+	// Clear existing preview
 	previewContainer.innerHTML = "";
 
-	// Create new orb
-	const orb = document.createElement("orb-animation");
-	previewContainer.appendChild(orb);
+	const canvas = document.createElement("canvas");
+	canvas.width = 400;
+	canvas.height = 400;
+	const ctx = canvas.getContext("2d");
+	if (!ctx) return;
+	drawGhost(ctx, 400);
+	previewContainer.appendChild(canvas);
 }
 
 function renderIconsPage() {
@@ -187,7 +220,7 @@ function renderIconsPage() {
 				<div class="bg-card border border-border rounded-lg p-6 mb-8">
 					<h2 class="text-xl font-semibold mb-3">Instructions</h2>
 					<ol class="list-decimal list-inside space-y-2 text-muted-foreground">
-						<li>Preview the orb animation below</li>
+						<li>Preview the ghost logo below</li>
 						<li>Click "Generate All Icons" or generate individual sizes</li>
 						<li>Download each icon using the download buttons</li>
 						<li>Replace the icon files in the <code class="px-1.5 py-0.5 bg-secondary rounded text-xs">static/</code> directory</li>
@@ -198,7 +231,7 @@ function renderIconsPage() {
 				<div class="bg-card border border-border rounded-lg p-6 mb-8">
 					<h2 class="text-xl font-semibold mb-4">Preview</h2>
 					<div class="flex justify-center">
-						<div id="orb-preview" class="relative" style="width: 400px; height: 400px;"></div>
+						<div id="ghost-preview" class="relative" style="width: 400px; height: 400px;"></div>
 					</div>
 				</div>
 
@@ -254,9 +287,9 @@ function renderIconsPage() {
 
 	render(template, container);
 
-	// Create the preview orb after rendering
+	// Create the preview ghost after rendering
 	requestAnimationFrame(() => {
-		createPreviewOrb();
+		createPreviewGhost();
 	});
 }
 

@@ -52,7 +52,7 @@ export function createOverlayScript(taskName: string): string {
 		);
 	\`;
 
-	// Layer 1: Inner orange/red glow
+	// Layer 1: Inner cyan/magenta glow
 	const layer1 = document.createElement('div');
 	layer1.style.cssText = \`
 		position: absolute;
@@ -64,9 +64,9 @@ export function createOverlayScript(taskName: string): string {
 			ellipse at center,
 			transparent 0%,
 			transparent 50%,
-			rgba(255, 107, 0, 0.04) 65%,
-			rgba(255, 69, 0, 0.06) 80%,
-			rgba(220, 38, 38, 0.03) 100%
+			rgba(0, 255, 255, 0.04) 65%,
+			rgba(255, 16, 240, 0.06) 80%,
+			rgba(168, 85, 247, 0.03) 100%
 		);
 		animation: sitegeist-shimmer-radial-1 3s ease-in-out infinite;
 	\`;
