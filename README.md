@@ -1,4 +1,8 @@
 <p align="center">
+  <img width="128" height="128" alt="sitegeist — the nightshadeNeon ghost" src="static/icon-128.png" />
+</p>
+
+<p align="center">
   <img width="406" height="412" alt="image" src="https://github.com/user-attachments/assets/ea2e72cb-69a5-42d6-a853-e51fb1eb807f" />
 </p>
 
@@ -225,7 +229,7 @@ Extension:
   `tabGroups`, `nativeMessaging`, `alarms`.
 - Fixed the type errors in the custom provider dialogs.
 
-CLI (`cli/`, package `sitegeist`): native host, socket client, MCP server with 22 tools,
+CLI (`cli/`, package `sitegeist`): native host, socket client, MCP server with 23 tools,
 installer for all Chromium browser directories (macOS, Linux, Windows registry), pi
 extension generator.
 
