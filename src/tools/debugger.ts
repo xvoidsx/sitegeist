@@ -1,5 +1,5 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
-import { StringEnum, type ToolResultMessage } from "@mariozechner/pi-ai";
+import type { ToolResultMessage } from "@mariozechner/pi-ai";
 import {
 	registerToolRenderer,
 	renderCollapsibleHeader,
@@ -13,6 +13,7 @@ import { createRef, ref } from "lit/directives/ref.js";
 import { Bug } from "lucide";
 import { evaluateMain } from "../browser/cdp.js";
 import { getCurrentBrowserSession } from "../browser/current.js";
+import { StringEnum } from "./typebox-helpers.js";
 
 // ============================================================================
 // TYPES
@@ -68,9 +69,12 @@ CRITICAL: Use browserjs() and repl tool for DOM manipulation. Use this ONLY for 
 
 	async execute(
 		_toolCallId: string,
-		args: DebuggerParams,
+		params: unknown,
 		signal?: AbortSignal,
 	): Promise<{ content: Array<{ type: "text"; text: string }>; details: DebuggerResult }> {
+		// The agent runtime validates params against debuggerSchema before
+		// calling execute, so the cast is safe; AgentTool requires unknown here.
+		const args = params as DebuggerParams;
 		if (signal?.aborted) {
 			throw new Error("Debugger command aborted");
 		}

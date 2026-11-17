@@ -3,7 +3,7 @@ import { icon } from "@mariozechner/mini-lit";
 import { Diff } from "@mariozechner/mini-lit/dist/Diff.js";
 import i18n from "@mariozechner/mini-lit/dist/i18n.js";
 import type { AgentTool } from "@mariozechner/pi-agent-core";
-import { StringEnum, type ToolResultMessage } from "@mariozechner/pi-ai";
+import type { ToolResultMessage } from "@mariozechner/pi-ai";
 import {
 	registerToolRenderer,
 	renderCollapsibleHeader,
@@ -23,6 +23,7 @@ import { SKILL_TOOL_DESCRIPTION } from "../prompts/prompts.js";
 import { getSitegeistStorage } from "../storage/app-storage.js";
 import type { Skill } from "../storage/stores/skills-store.js";
 import { defaultSkills } from "./default-skills.js";
+import { StringEnum } from "./typebox-helpers.js";
 
 const getSkills = () => getSitegeistStorage().skills;
 
@@ -201,7 +202,10 @@ export const skillTool: AgentTool<typeof skillParamsSchema, any> = {
 	name: "skill",
 	description: SKILL_TOOL_DESCRIPTION,
 	parameters: skillParamsSchema,
-	execute: async (_toolCallId: string, args: SkillParams) => {
+	execute: async (_toolCallId: string, params: unknown) => {
+		// The agent runtime validates params against skillParamsSchema before
+		// calling execute, so the cast is safe; AgentTool requires unknown here.
+		const args = params as SkillParams;
 		const skillsRepo = getSkills();
 		const tab = hasCurrentBrowserSession() ? await getCurrentBrowserSession().currentTab() : undefined;
 		const currentUrl = tab?.url || "";

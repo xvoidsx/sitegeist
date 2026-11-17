@@ -1,0 +1,15 @@
+# Sitegeist patch 10: pi-web-ui export the prompts module
+# Package: @mariozechner/pi-web-ui@0.73.1
+# Applies to: pi-web-ui/package.json
+# Rationale: see PATCHES.md #10.
+# Generated 2026-11-17 from the live patched tree vs pristine 0.73.1
+# (scripts/apply-patches.mjs applies these in numeric order).
+#
+--- a/@mariozechner/pi-web-ui/package.json
++++ b/@mariozechner/pi-web-ui/package.json
+@@ -8,4 +8,5 @@
+ 	"exports": {
+ 		".": "./dist/index.js",
++		"./dist/prompts/prompts.js": "./dist/prompts/prompts.js",
+ 		"./app.css": "./dist/app.css"
+ 	},

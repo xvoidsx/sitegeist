@@ -93,7 +93,10 @@ export class NavigateTool implements AgentTool<typeof navigateSchema, NavigateRe
 	description = NAVIGATE_TOOL_DESCRIPTION;
 	parameters = navigateSchema;
 
-	async execute(_toolCallId: string, args: NavigateParams, signal?: AbortSignal): Promise<NavigateOutput> {
+	async execute(_toolCallId: string, params: unknown, signal?: AbortSignal): Promise<NavigateOutput> {
+		// The agent runtime validates params against navigateSchema before
+		// calling execute, so the cast is safe; AgentTool requires unknown here.
+		const args = params as NavigateParams;
 		if (signal?.aborted) {
 			throw new Error("Navigation aborted");
 		}

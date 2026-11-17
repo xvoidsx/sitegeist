@@ -35,12 +35,13 @@
 +}
 --- a/@mariozechner/pi-ai/dist/models.d.ts
 +++ b/@mariozechner/pi-ai/dist/models.d.ts
-@@ -15,4 +15,6 @@
+@@ -15,4 +15,7 @@
   */
  export declare function modelsAreEqual<TApi extends Api>(a: Model<TApi> | null | undefined, b: Model<TApi> | null | undefined): boolean;
  export {};
 -//# sourceMappingURL=models.d.ts.map
 \ No newline at end of file
-+//# sourceMappingURL=models.d.ts.mapexport declare function registerModels(provider: string, models: Model<Api>[]): void;
++//# sourceMappingURL=models.d.ts.map
++export declare function registerModels(provider: string, models: Model<Api>[]): void;
 +export declare function resetProviderModels(provider: string): void;
 +export declare function getGeneratedModels(provider: string): Model<Api>[];

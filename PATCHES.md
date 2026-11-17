@@ -271,3 +271,16 @@ File:
 Verify: `grep -n "listener error after finishRun" node_modules/@mariozechner/pi-agent-core/dist/agent.js`.
 After `npm run build`, verify the marker landed in the bundle:
 `grep -o "listener error after finishRun" dist-chrome/sidepanel.js | sort | uniq -c`.
+
+## 10. pi-web-ui: export the prompts module
+
+Why: `src/prompts/count-tokens.ts` counts tokens in system prompts using the
+upstream tool and runtime-provider descriptions. Three of the five constants
+it needs are re-exported from the package root, but
+`ARTIFACTS_TOOL_DESCRIPTION` and `EXTRACT_DOCUMENT_DESCRIPTION` live only in
+`dist/prompts/prompts.js`, and the package's `exports` map allows only `"."`
+and `"./app.css"` — so the deep import fails under both `tsc` (Bundler
+resolution) and esbuild. This patch adds the one subpath to the map; it
+changes no existing resolution.
+File: `sitegeist/node_modules/@mariozechner/pi-web-ui/package.json`
+Verify: `node -e "console.log(Object.keys(require('./node_modules/@mariozechner/pi-web-ui/package.json').exports))"` lists `./dist/prompts/prompts.js`.

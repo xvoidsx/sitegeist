@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+- `check.sh` passes on main again, so `release.sh` and the pre-commit hook work as documented
+- Model selector call now matches the published `ModelSelector.open` signature; the thinking-level option was silently dropped at runtime
+
 ## [1.2.7] - 2026-11-17
 
 ### Added

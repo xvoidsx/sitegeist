@@ -11,6 +11,7 @@ import {
 } from "@mariozechner/pi-agent-core";
 import { getModel, getModels, type Model } from "@mariozechner/pi-ai";
 import {
+	type AgentInterface,
 	ChatPanel,
 	type CustomProvider,
 	createExtractDocumentTool,
@@ -67,6 +68,15 @@ import * as port from "./utils/port.js";
 import "./utils/i18n-extension.js";
 import "./utils/live-reload.js";
 import { tutorials } from "./tutorials.js";
+
+// The published AgentInterface has no slash-command or history providers —
+// nothing in pi-web-ui reads them — but the assignments below are kept for the
+// fork's intended "/" skill listing and ArrowUp history recall. Declared here
+// (rather than patched into pi-web-ui) because there is no runtime backing.
+interface SitegeistAgentInterface extends AgentInterface {
+	slashCommandProvider?: ReturnType<typeof buildSkillSlashProvider>;
+	historyProvider?: () => string | undefined;
+}
 
 // Register custom message renderers
 registerNavigationRenderer();
@@ -693,6 +703,10 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 			}
 			// Cached lists are already registered; give stale providers a moment to refresh.
 			await refreshDiscoveredModels(storage, { wait: true, timeoutMs: 4000 }).catch(() => {});
+			// NOTE: published ModelSelector.open takes only (model, onSelect,
+			// allowedProviders) — a thinking-level option passed here was silently
+			// dropped at runtime, so the picker never offered it. Restoring it
+			// needs a pi-web-ui patch, not a fourth argument.
 			ModelSelector.open(
 				agent.state.model,
 				(model) => {
@@ -701,15 +715,6 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 					renderApp();
 				},
 				providers,
-				{
-					level: agent.state.thinkingLevel,
-					onChange: (level) => {
-						agent.setThinkingLevel(level);
-						chatPanel.agentInterface?.requestUpdate();
-						saveSession();
-						renderApp();
-					},
-				},
 			);
 		},
 		onBeforeSend: async () => {
@@ -800,9 +805,9 @@ const createAgent = async (initialState?: Partial<AgentState>, shouldSave = true
 		// dropdown in the input toolbar.
 		chatPanel.agentInterface.enableThinkingSelector = false;
 		// "/" in the chat input lists skills (recordings included) for the site.
-		chatPanel.agentInterface.slashCommandProvider = buildSkillSlashProvider();
+		(chatPanel.agentInterface as SitegeistAgentInterface).slashCommandProvider = buildSkillSlashProvider();
 		// ArrowUp in an empty composer recalls the last prompt for editing or resending.
-		chatPanel.agentInterface.historyProvider = () => {
+		(chatPanel.agentInterface as SitegeistAgentInterface).historyProvider = () => {
 			for (let i = agent.state.messages.length - 1; i >= 0; i--) {
 				const m = agent.state.messages[i];
 				if (m.role !== "user") continue;

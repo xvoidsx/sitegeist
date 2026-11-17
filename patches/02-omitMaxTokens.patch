@@ -1,6 +1,6 @@
 # Sitegeist patch 2: pi-ai honor compat.omitMaxTokens
 # Package: @mariozechner/pi-ai@0.73.1
-# Applies to: pi-ai/dist/providers/openai-completions.js
+# Applies to: pi-ai/dist/providers/openai-completions.js, pi-ai/dist/types.d.ts
 # Rationale: see PATCHES.md #2.
 # Generated 2026-11-13 from the live patched tree vs pristine 0.73.1
 # (scripts/apply-patches.mjs applies these in numeric order).
@@ -16,3 +16,27 @@
          if (compat.maxTokensField === "max_tokens") {
              params.max_tokens = options.maxTokens;
          }
+--- a/@mariozechner/pi-ai/dist/types.d.ts
++++ b/@mariozechner/pi-ai/dist/types.d.ts
+@@ -245,4 +245,6 @@
+ export interface OpenAICompletionsCompat {
++    /** Whether the provider omits max_tokens/max_completion_tokens. Sitegeist patch: honor compat.omitMaxTokens (see PATCHES.md #2). */
++    omitMaxTokens?: boolean;
+     /** Whether the provider supports the `store` field. Default: auto-detected from URL. */
+     supportsStore?: boolean;
+     /** Whether the provider supports the `developer` role (vs `system`). Default: auto-detected from URL. */
+@@ -282,4 +282,6 @@
+ export interface OpenAIResponsesCompat {
++    /** Whether the provider omits max_tokens/max_completion_tokens. Sitegeist patch: honor compat.omitMaxTokens (see PATCHES.md #2). */
++    omitMaxTokens?: boolean;
+     /** Whether to send the OpenAI `session_id` cache-affinity header from `options.sessionId` when caching is enabled. Default: true. */
+     sendSessionIdHeader?: boolean;
+     /** Whether the provider supports `prompt_cache_retention: "24h"`. Default: true. */
+@@ -289,5 +289,7 @@
+ /** Compatibility settings for Anthropic Messages-compatible APIs. */
+ export interface AnthropicMessagesCompat {
++    /** Whether the provider omits max_tokens/max_completion_tokens. Sitegeist patch: honor compat.omitMaxTokens (see PATCHES.md #2). */
++    omitMaxTokens?: boolean;
+     /**
+      * Whether the provider accepts per-tool `eager_input_streaming`.
+      * When false, the Anthropic provider omits `tools[].eager_input_streaming`
