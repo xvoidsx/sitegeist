@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [1.2.9] - 2026-11-19
+
+### Fixed
+- Tab groups form again when the panel opens on a tab: the 1.2.8 group-released flag blocked every grouping path, so a deleted group could never return for its own session. Grouping now happens only at explicit moments (panel open, agent new tab, agent popup); reconcile never groups anything
+- Session groups no longer fold down when the panel switches tabs: the panel-close collapse now waits 5 seconds and is cancelled if the panel reconnects, so only a real close folds groups down
+
+### Changed
+- Tab groups are titled with the ghost instead of the word Sitegeist: `👻 · chat`
+
 ## [1.2.8] - 2026-11-19
 
 ### Fixed

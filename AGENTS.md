@@ -44,7 +44,7 @@ When the user asks to do a release:
 The script bumps the version in `static/manifest.chrome.json`, finalizes the changelog, commits, tags, and pushes. GitHub Actions builds and publishes the release.
 
 ## Style
-- No emojis in commits, code, or comments
+- Emojis are fine in user-facing copy (e.g. the 👻 tab-group prefix); keep commit messages and code comments plain
 - No fluff or cheerful filler text
 - Technical prose only, direct and concise
 

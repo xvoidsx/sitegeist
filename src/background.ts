@@ -64,6 +64,11 @@ const SIDEPANEL_OPEN_KEY = "sidepanel_open_windows";
 const panelPathCache = new Map<number, string | undefined>();
 let openSidepanels = new Set<number>();
 
+// Pending panel-close collapses, one per window. A disconnect also fires when the
+// panel reloads to point at another tab, so the collapse waits a few seconds and is
+// cancelled if the panel reconnects; only a real close folds the groups down.
+const panelCollapseTimers = new Map<number, ReturnType<typeof setTimeout>>();
+
 chrome.storage.session.get(SIDEPANEL_OPEN_KEY, (data) => {
 	openSidepanels = new Set<number>((data[SIDEPANEL_OPEN_KEY] as number[]) || []);
 });
@@ -235,6 +240,11 @@ chrome.runtime.onConnect.addListener((port: chrome.runtime.Port) => {
 	const windowId = Number(match[1]);
 	panelLog(`panel connected window=${windowId}`);
 	openSidepanels.add(windowId);
+	const pendingCollapse = panelCollapseTimers.get(windowId);
+	if (pendingCollapse !== undefined) {
+		clearTimeout(pendingCollapse);
+		panelCollapseTimers.delete(windowId);
+	}
 	void enableOwnedTabs(windowId);
 	chrome.storage.session.get(SIDEPANEL_OPEN_KEY, (data) => {
 		const open = new Set<number>((data[SIDEPANEL_OPEN_KEY] as number[]) || []);
@@ -246,7 +256,17 @@ chrome.runtime.onConnect.addListener((port: chrome.runtime.Port) => {
 		openSidepanels.delete(windowId);
 		// Fold the window's session groups down when the panel closes, so finished
 		// work stops cluttering the tab strip instead of sitting there expanded.
-		void collapseGroupsInWindow(windowId).catch(() => undefined);
+		// The collapse waits a few seconds: a disconnect also fires when the panel
+		// reloads to point at another tab, and the reconnect on that path cancels it.
+		const pending = panelCollapseTimers.get(windowId);
+		if (pending !== undefined) clearTimeout(pending);
+		panelCollapseTimers.set(
+			windowId,
+			setTimeout(() => {
+				panelCollapseTimers.delete(windowId);
+				void collapseGroupsInWindow(windowId).catch(() => undefined);
+			}, 5000),
+		);
 		chrome.storage.session.get(SIDEPANEL_OPEN_KEY, (data) => {
 			const open = new Set<number>((data[SIDEPANEL_OPEN_KEY] as number[]) || []);
 			open.delete(windowId);

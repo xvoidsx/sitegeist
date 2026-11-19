@@ -16,7 +16,7 @@
 import { detachTab, ensureAttached, isRestrictedUrl, releaseAgentViewport } from "./cdp.js";
 
 const STORAGE_KEY = "browser_sessions";
-const GROUP_PREFIX = "Sitegeist";
+const GROUP_PREFIX = "👻";
 const GROUP_COLORS: `${chrome.tabGroups.Color}`[] = [
 	"blue",
 	"cyan",
@@ -44,8 +44,6 @@ interface PersistedSession {
 	color: `${chrome.tabGroups.Color}`;
 	windowId: number;
 	groupId?: number;
-	/** The user deleted this session's tab group; do not recreate it until the agent opens a fresh tab. */
-	groupReleased?: boolean;
 	tabIds: number[];
 	currentTabId?: number;
 	/** The tab the panel that owns this session was opened on (Claude-style per-tab binding). */
@@ -105,7 +103,7 @@ export async function sessionIdForTab(tabId: number): Promise<string | undefined
 }
 
 /**
- * Ungroup tabs sitting in "Sitegeist · ..." groups that no live session owns (left behind
+ * Ungroup tabs sitting in "👻 · ..." groups that no live session owns (left behind
  * by an extension reload, which clears session storage but not the browser's groups).
  */
 export async function cleanupOrphanGroups(): Promise<number> {
@@ -128,8 +126,9 @@ export async function cleanupOrphanGroups(): Promise<number> {
 
 /**
  * The user deleted a tab group (Chrome reports it through tabGroups.onRemoved when
- * its last tab leaves). Remember the release so the owning session never recreates
- * the group; it comes back only when the agent opens a fresh tab (createTab).
+ * its last tab leaves). Clear the stored group id so nothing thinks a group still
+ * exists; the group comes back only at an explicit moment (the panel opening on a
+ * tab, or the agent opening a fresh tab). Reconcile never recreates a group.
  */
 export async function markGroupReleased(groupId: number): Promise<void> {
 	const table = await readTable();
@@ -137,13 +136,11 @@ export async function markGroupReleased(groupId: number): Promise<void> {
 	for (const s of Object.values(table)) {
 		if (s.groupId !== groupId) continue;
 		s.groupId = undefined;
-		s.groupReleased = true;
 		changed = true;
 		const inst = instances.get(s.id);
 		if (inst) {
 			const state = (inst as unknown as { state: PersistedSession }).state;
 			state.groupId = undefined;
-			state.groupReleased = true;
 		}
 	}
 	if (changed) await writeTable(table);
@@ -427,14 +424,15 @@ export class BrowserSession {
 			}
 			this.state.tabIds = alive;
 		}
-		// A tab the user dragged out of the group stays out: forcing it back would undo
-		// their action, and a group the user deleted is never recreated here. Only
-		// re-join tabs to a group that still exists.
-		if (group) {
-			for (const id of alive) {
-				const tab = await tabExists(id);
-				if (tab && tab.groupId !== group.id) await this.groupTab(id);
-			}
+		// Reconcile never groups anything: a tab the user dragged out stays out, and a
+		// group the user deleted is never recreated here. Grouping happens only at
+		// explicit moments (the panel opening on a tab, the agent opening a fresh tab,
+		// or a popup the agent opened). Re-stamp the title so a live group picks up
+		// the current format after an upgrade.
+		if (group && group.title !== this.groupTitle()) {
+			await chrome.tabGroups
+				.update(group.id, { title: this.groupTitle(), color: this.state.color })
+				.catch(() => undefined);
 		}
 		await this.persist();
 	}
@@ -471,8 +469,9 @@ export class BrowserSession {
 	 * Put a tab into the session group, creating the group in the tab's window. A tab in
 	 * another window is moved next to the group first (a group cannot span windows). If the
 	 * existing group refuses the tab, a live group with the same title in the same window
-	 * is reused when no other session owns it; a fresh group is made only as a last resort,
-	 * and never one the user released (see groupReleased).
+	 * is reused when no other session owns it; a fresh group is made only as a last resort.
+	 * Only explicit moments call this (panel open, agent new tab, agent popup); reconcile
+	 * never does, so a group the user deleted stays deleted until one of those happens.
 	 */
 	private async groupTab(tabId: number): Promise<void> {
 		try {
@@ -495,9 +494,7 @@ export class BrowserSession {
 					this.state.groupId = undefined;
 				}
 			}
-			// No live group to join. Never resurrect one the user deleted: the group
-			// comes back only when the agent opens a fresh tab (createTab clears the flag).
-			if (this.state.groupReleased) return;
+			// No live group to join: reuse a same-titled one, else mint a fresh group.
 			if (await this.reuseGroup(tabId)) return;
 			if (tab.groupId !== undefined && tab.groupId !== -1) await chrome.tabs.ungroup(tabId).catch(() => undefined);
 			this.state.groupId = await withGroupRetry(() =>
@@ -559,8 +556,6 @@ export class BrowserSession {
 	 * tab loads it directly (callers wait for the load); without one it starts blank.
 	 */
 	async createTab(url?: string): Promise<chrome.tabs.Tab> {
-		// The agent starting new work earns a group again, even one the user released.
-		this.state.groupReleased = undefined;
 		const windowId = await this.targetWindowId();
 		const tab = await chrome.tabs.create({ url: url ?? "about:blank", windowId, active: false });
 		if (tab.id === undefined) throw new Error("Failed to create tab");
@@ -593,7 +588,9 @@ export class BrowserSession {
 		this.state.tabIds = this.state.tabIds.map((id) => (id === oldId ? newId : id));
 		if (this.state.currentTabId === oldId) this.state.currentTabId = newId;
 		if (this.state.homeTabId === oldId) this.state.homeTabId = newId;
-		await this.groupTab(newId);
+		// Keep the new tab in the group, but only when one still exists: a prerender
+		// swap must not resurrect a group the user deleted.
+		if (await this.liveGroup()) await this.groupTab(newId);
 		await this.persist();
 	}
 
