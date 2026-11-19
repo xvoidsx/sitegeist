@@ -4,6 +4,7 @@ import {
 	BrowserSession,
 	cleanupOrphanGroups,
 	collapseGroupsInWindow,
+	GROUP_REQUEST_KEY,
 	listSessions,
 	markGroupReleased,
 } from "./browser/session.js";
@@ -175,6 +176,10 @@ async function reconcileActiveTab(windowId: number, tabId: number): Promise<void
  * in it. Any other tab gets a fresh task bound to it.
  */
 function openPanelOnTab(tabId: number, source: string): void {
+	// The click is the user re-engaging the task: record it so the panel load clears
+	// a dismissed group. A reload or tab-switch re-point records nothing, so those
+	// can never bring a dismissed group back.
+	void chrome.storage.session.set({ [GROUP_REQUEST_KEY]: { tabId, at: Date.now() } }).catch(() => undefined);
 	const existing = panelPathCache.get(tabId);
 	if (existing) {
 		chrome.sidePanel.open({ tabId }).catch((err) => recordPanelError(`open(${source})`, err));

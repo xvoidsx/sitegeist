@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.2.10] - 2026-11-19
+
+### Fixed
+- Tab groups stay dismissed until the user re-engages the task: ungrouping a session's tabs no longer lets the next agent tab or panel reload bring the group back. The group returns only when the user opens the panel on one of the session's tabs (toolbar icon or keyboard shortcut) or shares a tab with the agent
+
 ## [1.2.9] - 2026-11-19
 
 ### Fixed

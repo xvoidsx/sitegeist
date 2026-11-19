@@ -16,6 +16,9 @@
 import { detachTab, ensureAttached, isRestrictedUrl, releaseAgentViewport } from "./cdp.js";
 
 const STORAGE_KEY = "browser_sessions";
+
+/** Panel-open gesture: the user clicked the sitegeist icon or shortcut on this tab. */
+export const GROUP_REQUEST_KEY = "sitegeist_group_request";
 const GROUP_PREFIX = "👻";
 const GROUP_COLORS: `${chrome.tabGroups.Color}`[] = [
 	"blue",
@@ -44,6 +47,8 @@ interface PersistedSession {
 	color: `${chrome.tabGroups.Color}`;
 	windowId: number;
 	groupId?: number;
+	/** The user dismissed this session's tab group; do not recreate it until they re-engage the task. */
+	groupDismissed?: boolean;
 	tabIds: number[];
 	currentTabId?: number;
 	/** The tab the panel that owns this session was opened on (Claude-style per-tab binding). */
@@ -127,8 +132,10 @@ export async function cleanupOrphanGroups(): Promise<number> {
 /**
  * The user deleted a tab group (Chrome reports it through tabGroups.onRemoved when
  * its last tab leaves). Clear the stored group id so nothing thinks a group still
- * exists; the group comes back only at an explicit moment (the panel opening on a
- * tab, or the agent opening a fresh tab). Reconcile never recreates a group.
+ * exists, and remember the dismissal: for panel sessions the group stays gone until
+ * the user re-engages the task (a panel-open gesture clears the flag). Bridge
+ * sessions are never flagged — their groups are the only view into headless harness
+ * work, and there is no panel gesture to clear the flag with.
  */
 export async function markGroupReleased(groupId: number): Promise<void> {
 	const table = await readTable();
@@ -136,11 +143,13 @@ export async function markGroupReleased(groupId: number): Promise<void> {
 	for (const s of Object.values(table)) {
 		if (s.groupId !== groupId) continue;
 		s.groupId = undefined;
+		if (!s.id.startsWith("bridge-")) s.groupDismissed = true;
 		changed = true;
 		const inst = instances.get(s.id);
 		if (inst) {
 			const state = (inst as unknown as { state: PersistedSession }).state;
 			state.groupId = undefined;
+			if (!s.id.startsWith("bridge-")) state.groupDismissed = true;
 		}
 	}
 	if (changed) await writeTable(table);
@@ -454,6 +463,11 @@ export class BrowserSession {
 		await this.persist();
 	}
 
+	/** The user re-engaged the task: a dismissed group may form again. */
+	clearGroupDismissed(): void {
+		this.state.groupDismissed = undefined;
+	}
+
 	/** The session's group if it still exists. */
 	private async liveGroup(): Promise<chrome.tabGroups.TabGroup | undefined> {
 		if (this.state.groupId === undefined) return undefined;
@@ -470,8 +484,8 @@ export class BrowserSession {
 	 * another window is moved next to the group first (a group cannot span windows). If the
 	 * existing group refuses the tab, a live group with the same title in the same window
 	 * is reused when no other session owns it; a fresh group is made only as a last resort.
-	 * Only explicit moments call this (panel open, agent new tab, agent popup); reconcile
-	 * never does, so a group the user deleted stays deleted until one of those happens.
+	 * A group the user dismissed is never recreated here: only a panel-open gesture or a
+	 * share clears the flag, so agent tabs and panel reloads cannot bring it back.
 	 */
 	private async groupTab(tabId: number): Promise<void> {
 		try {
@@ -494,7 +508,10 @@ export class BrowserSession {
 					this.state.groupId = undefined;
 				}
 			}
-			// No live group to join: reuse a same-titled one, else mint a fresh group.
+			// No live group to join. Never resurrect one the user dismissed: the group
+			// comes back only when the user re-engages the task (openBrowserSession
+			// clears the flag on a panel-open gesture, shareActiveTab on a share).
+			if (this.state.groupDismissed) return;
 			if (await this.reuseGroup(tabId)) return;
 			if (tab.groupId !== undefined && tab.groupId !== -1) await chrome.tabs.ungroup(tabId).catch(() => undefined);
 			this.state.groupId = await withGroupRetry(() =>

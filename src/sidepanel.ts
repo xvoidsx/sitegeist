@@ -28,7 +28,13 @@ import { Circle, Download, History, Link, Plus, Settings, Square } from "lucide"
 import { isRestrictedUrl } from "./browser/cdp.js";
 import { setCurrentBrowserSession } from "./browser/current.js";
 import { dispatchToSandbox, setCdpMessageHandler } from "./browser/inject.js";
-import { BrowserSession, listSessions, sessionIdForTab, sessionOwningTab } from "./browser/session.js";
+import {
+	BrowserSession,
+	GROUP_REQUEST_KEY,
+	listSessions,
+	sessionIdForTab,
+	sessionOwningTab,
+} from "./browser/session.js";
 import { Toast } from "./components/Toast.js";
 import { AboutTab } from "./dialogs/AboutTab.js";
 import { ApiKeyOrOAuthDialog } from "./dialogs/ApiKeyOrOAuthDialog.js";
@@ -180,6 +186,15 @@ async function openBrowserSession(id: string): Promise<void> {
 	// group exists from the start and the agent has a page to work with. The tab keeps showing
 	// this task's panel; other tabs are unaffected.
 	if (homeTabId !== undefined) {
+		// A panel-open gesture (toolbar icon / keyboard shortcut) is the user
+		// re-engaging the task: a dismissed group may form again. A reload or
+		// tab-switch re-point records nothing, so those can never clear the flag.
+		const stored = await chrome.storage.session.get(GROUP_REQUEST_KEY);
+		const request = stored[GROUP_REQUEST_KEY] as { tabId?: number; at?: number } | undefined;
+		if (request?.tabId === homeTabId && request.at !== undefined && Date.now() - request.at < 10_000) {
+			browserSession.clearGroupDismissed();
+			await chrome.storage.session.remove(GROUP_REQUEST_KEY).catch(() => undefined);
+		}
 		await browserSession.setHomeTab(homeTabId);
 		// A tab an external agent is driving stays with that agent; the panel only binds to it.
 		const owner = await sessionOwningTab(homeTabId);
@@ -202,6 +217,9 @@ async function adoptActiveTab(notify: boolean): Promise<void> {
 		return;
 	}
 	if (browserSession.tabIds.includes(tab.id)) return;
+	// Handing a tab to the agent is the user re-engaging the task: a dismissed
+	// group may form again.
+	browserSession.clearGroupDismissed();
 	await browserSession.adopt(tab.id, true);
 	if (notify) Toast.success("Tab shared with the agent");
 }
