@@ -2,9 +2,13 @@
 
 ## [Unreleased]
 
+## [1.2.8] - 2026-11-19
+
 ### Fixed
 - `check.sh` passes on main again, so `release.sh` and the pre-commit hook work as documented
 - Model selector call now matches the published `ModelSelector.open` signature; the thinking-level option was silently dropped at runtime
+- Tab groups respect the user: deleting a group or dragging a tab out of one is no longer undone by reconcile; a deleted group returns only when the agent opens a fresh tab, and a live group with the same title is reused instead of minting a duplicate
+- The foreground guard no longer adopts tabs the user opened themselves, and session groups fold down when the side panel closes or after 30 minutes idle
 
 ## [1.2.7] - 2026-11-17
 

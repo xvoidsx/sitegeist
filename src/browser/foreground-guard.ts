@@ -35,6 +35,8 @@ async function onNewTab(tabId: number, sourceTabId: number, via: string): Promis
 	// clicked a link on a shared tab themselves), the new tab is theirs to see.
 	const now = activeTab.get(tab.windowId);
 	const userWasOn = now === tabId ? previousActiveTab.get(tab.windowId) : now;
+	// A tab the user opened themselves is never adopted into the session.
+	if (userWasOn === sourceTabId) return;
 	let restored = false;
 	if (tab.active && userWasOn !== sourceTabId) {
 		const previous = await chrome.tabs.query({ windowId: tab.windowId });

@@ -44,6 +44,8 @@ interface PersistedSession {
 	color: `${chrome.tabGroups.Color}`;
 	windowId: number;
 	groupId?: number;
+	/** The user deleted this session's tab group; do not recreate it until the agent opens a fresh tab. */
+	groupReleased?: boolean;
 	tabIds: number[];
 	currentTabId?: number;
 	/** The tab the panel that owns this session was opened on (Claude-style per-tab binding). */
@@ -124,6 +126,38 @@ export async function cleanupOrphanGroups(): Promise<number> {
 	return released;
 }
 
+/**
+ * The user deleted a tab group (Chrome reports it through tabGroups.onRemoved when
+ * its last tab leaves). Remember the release so the owning session never recreates
+ * the group; it comes back only when the agent opens a fresh tab (createTab).
+ */
+export async function markGroupReleased(groupId: number): Promise<void> {
+	const table = await readTable();
+	let changed = false;
+	for (const s of Object.values(table)) {
+		if (s.groupId !== groupId) continue;
+		s.groupId = undefined;
+		s.groupReleased = true;
+		changed = true;
+		const inst = instances.get(s.id);
+		if (inst) {
+			const state = (inst as unknown as { state: PersistedSession }).state;
+			state.groupId = undefined;
+			state.groupReleased = true;
+		}
+	}
+	if (changed) await writeTable(table);
+}
+
+/** Fold every live session group in a window down (collapse, do not ungroup). */
+export async function collapseGroupsInWindow(windowId: number): Promise<void> {
+	const table = await readTable();
+	for (const s of Object.values(table)) {
+		if (s.windowId !== windowId || s.groupId === undefined) continue;
+		await chrome.tabGroups.update(s.groupId, { collapsed: true }).catch(() => undefined);
+	}
+}
+
 function isBlankUrl(url: string | undefined): boolean {
 	return (
 		!url ||
@@ -140,7 +174,7 @@ function isBlankUrl(url: string | undefined): boolean {
  * client is gone (`liveIds` lacks them) lose their blank tabs, are forgotten once they
  * own nothing, and have their group collapsed after `idleMs` so finished agent work
  * stops cluttering the tab strip (one click on the group closes it). Side-panel sessions
- * are left alone apart from dead ids: their tabs are the user's.
+ * keep their tabs, but their group is folded down after the same idle window.
  */
 export async function pruneSessions(
 	liveIds: Set<string>,
@@ -190,6 +224,14 @@ export async function pruneSessions(
 			instances.delete(state.id);
 			dropped++;
 			continue;
+		}
+		// Finished work stops cluttering the tab strip: fold a panel session's group
+		// down once it has been idle, the same as bridge sessions above.
+		if (!isBridge && state.groupId !== undefined) {
+			const userLooking = state.tabIds.some((id) => liveTabs.get(id)?.active);
+			if (!userLooking && now - (state.lastUsedAt ?? 0) > idleMs) {
+				await chrome.tabGroups.update(state.groupId, { collapsed: true }).catch(() => undefined);
+			}
 		}
 		table[state.id] = state;
 	}
@@ -385,11 +427,14 @@ export class BrowserSession {
 			}
 			this.state.tabIds = alive;
 		}
-		// Tabs that fell out of the group (or never made it in) go back, so the user always sees
-		// an agent's tabs together.
-		for (const id of alive) {
-			const tab = await tabExists(id);
-			if (tab && (this.state.groupId === undefined || tab.groupId !== this.state.groupId)) await this.groupTab(id);
+		// A tab the user dragged out of the group stays out: forcing it back would undo
+		// their action, and a group the user deleted is never recreated here. Only
+		// re-join tabs to a group that still exists.
+		if (group) {
+			for (const id of alive) {
+				const tab = await tabExists(id);
+				if (tab && tab.groupId !== group.id) await this.groupTab(id);
+			}
 		}
 		await this.persist();
 	}
@@ -425,7 +470,9 @@ export class BrowserSession {
 	/**
 	 * Put a tab into the session group, creating the group in the tab's window. A tab in
 	 * another window is moved next to the group first (a group cannot span windows). If the
-	 * existing group refuses the tab, a fresh group is made rather than leaving it loose.
+	 * existing group refuses the tab, a live group with the same title in the same window
+	 * is reused when no other session owns it; a fresh group is made only as a last resort,
+	 * and never one the user released (see groupReleased).
 	 */
 	private async groupTab(tabId: number): Promise<void> {
 		try {
@@ -448,6 +495,10 @@ export class BrowserSession {
 					this.state.groupId = undefined;
 				}
 			}
+			// No live group to join. Never resurrect one the user deleted: the group
+			// comes back only when the agent opens a fresh tab (createTab clears the flag).
+			if (this.state.groupReleased) return;
+			if (await this.reuseGroup(tabId)) return;
 			if (tab.groupId !== undefined && tab.groupId !== -1) await chrome.tabs.ungroup(tabId).catch(() => undefined);
 			this.state.groupId = await withGroupRetry(() =>
 				chrome.tabs.group({ tabIds: [tabId], createProperties: { windowId: tab.windowId } }),
@@ -458,6 +509,35 @@ export class BrowserSession {
 			// A closing window or a tab being dragged must not fail the tool; the tab stays owned.
 			console.warn("[BrowserSession] group failed:", err);
 		}
+	}
+
+	/**
+	 * Adopt a live group with this session's title in the tab's window, when no other
+	 * session owns it. Minting a fresh group every time the stored id went stale
+	 * multiplied same-titled groups; re-finding by title used to hand a fresh session
+	 * another agent's group, so ownership is checked against the session table first.
+	 */
+	private async reuseGroup(tabId: number): Promise<boolean> {
+		const tab = await chrome.tabs.get(tabId).catch(() => undefined);
+		if (!tab) return false;
+		const table = await readTable();
+		const owned = new Set<number>();
+		for (const s of Object.values(table)) if (s.id !== this.state.id && s.groupId !== undefined) owned.add(s.groupId);
+		const groups = await chrome.tabGroups.query({ windowId: tab.windowId }).catch(() => []);
+		const match = groups.find((g) => g.title === this.groupTitle() && !owned.has(g.id));
+		if (!match) return false;
+		try {
+			await withGroupRetry(() => chrome.tabs.group({ tabIds: [tabId], groupId: match.id }));
+		} catch (err) {
+			console.warn("[BrowserSession] joining reused group failed:", err);
+			return false;
+		}
+		this.state.groupId = match.id;
+		this.state.windowId = tab.windowId;
+		await chrome.tabGroups
+			.update(match.id, { title: this.groupTitle(), color: this.state.color })
+			.catch(() => undefined);
+		return true;
 	}
 
 	/** Window for new tabs: the group's window when it exists, else the session window. */
@@ -479,6 +559,8 @@ export class BrowserSession {
 	 * tab loads it directly (callers wait for the load); without one it starts blank.
 	 */
 	async createTab(url?: string): Promise<chrome.tabs.Tab> {
+		// The agent starting new work earns a group again, even one the user released.
+		this.state.groupReleased = undefined;
 		const windowId = await this.targetWindowId();
 		const tab = await chrome.tabs.create({ url: url ?? "about:blank", windowId, active: false });
 		if (tab.id === undefined) throw new Error("Failed to create tab");

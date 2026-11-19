@@ -1,6 +1,12 @@
 import { startBridge, trace } from "./bridge/native.js";
 import { setGuardLogger, startForegroundGuard } from "./browser/foreground-guard.js";
-import { BrowserSession, cleanupOrphanGroups, listSessions } from "./browser/session.js";
+import {
+	BrowserSession,
+	cleanupOrphanGroups,
+	collapseGroupsInWindow,
+	listSessions,
+	markGroupReleased,
+} from "./browser/session.js";
 
 // Keep popups opened by agent-driven background tabs from stealing the user's focus.
 startForegroundGuard();
@@ -21,6 +27,13 @@ chrome.webNavigation.onTabReplaced.addListener(async ({ replacedTabId, tabId }) 
 		// Never let a storage/session failure surface as an uncaught worker error.
 		recordPanelError("onTabReplaced", err);
 	}
+});
+
+// The user deleted a tab group (or ungrouped its last tab): remember the release so
+// the owning session never recreates it. Without this, reconcile resurrects every
+// group the user deletes.
+chrome.tabGroups.onRemoved.addListener((group) => {
+	void markGroupReleased(group.id).catch((err) => recordPanelError("onGroupRemoved", err));
 });
 
 // External harnesses (omp, pi, Claude Code, Codex) drive the browser through the
@@ -231,6 +244,9 @@ chrome.runtime.onConnect.addListener((port: chrome.runtime.Port) => {
 	port.onDisconnect.addListener(() => {
 		panelLog(`panel disconnected window=${windowId}`);
 		openSidepanels.delete(windowId);
+		// Fold the window's session groups down when the panel closes, so finished
+		// work stops cluttering the tab strip instead of sitting there expanded.
+		void collapseGroupsInWindow(windowId).catch(() => undefined);
 		chrome.storage.session.get(SIDEPANEL_OPEN_KEY, (data) => {
 			const open = new Set<number>((data[SIDEPANEL_OPEN_KEY] as number[]) || []);
 			open.delete(windowId);
