@@ -65,6 +65,16 @@ const SIDEPANEL_OPEN_KEY = "sidepanel_open_windows";
 const panelPathCache = new Map<number, string | undefined>();
 let openSidepanels = new Set<number>();
 
+// Tabs the user deliberately opened the panel on, with the time they did it.
+// While a tab is here, reconcileActiveTab never disables its panel: the tab's
+// session is still binding (the panel document writes the session table as it
+// loads — reconcile persists the unbound session, prune closes empty ones — and
+// those writes re-run the reconcile that would otherwise close the panel the
+// user just opened). Entries expire after a few seconds; by then the session is
+// bound, or the panel is gone and normal rules resume.
+const recentlyOpenedTabs = new Map<number, number>();
+const PANEL_OPEN_GRACE_MS = 10_000;
+
 // Pending panel-close collapses, one per window. A disconnect also fires when the
 // panel reloads to point at another tab, so the collapse waits a few seconds and is
 // cancelled if the panel reconnects; only a real close folds the groups down.
@@ -155,6 +165,7 @@ async function enableOwnedTabs(windowId: number): Promise<void> {
  * that task's panel so switching tabs during a run doesn't tear the agent down.
  */
 async function reconcileActiveTab(windowId: number, tabId: number): Promise<void> {
+	for (const [id, at] of recentlyOpenedTabs) if (Date.now() - at >= PANEL_OPEN_GRACE_MS) recentlyOpenedTabs.delete(id);
 	const owned = await ownedTabs(windowId);
 	const own = owned.get(tabId);
 	if (own) {
@@ -166,6 +177,9 @@ async function reconcileActiveTab(windowId: number, tabId: number): Promise<void
 		await applyTab(tabId, `${PANEL_PATH}?tabId=${runningHome}`);
 		return;
 	}
+	// The user just opened the panel here; its session is still binding, so the
+	// tab reads as unowned for a moment. Never close a panel the user just asked for.
+	if (recentlyOpenedTabs.has(tabId)) return;
 	await applyTab(tabId, undefined);
 }
 
@@ -180,6 +194,7 @@ function openPanelOnTab(tabId: number, source: string): void {
 	// a dismissed group. A reload or tab-switch re-point records nothing, so those
 	// can never bring a dismissed group back.
 	void chrome.storage.session.set({ [GROUP_REQUEST_KEY]: { tabId, at: Date.now() } }).catch(() => undefined);
+	recentlyOpenedTabs.set(tabId, Date.now());
 	const existing = panelPathCache.get(tabId);
 	if (existing) {
 		chrome.sidePanel.open({ tabId }).catch((err) => recordPanelError(`open(${source})`, err));
@@ -225,6 +240,22 @@ async function onActiveTabsChanged(): Promise<void> {
 // Toolbar icon: open a task on the current tab.
 chrome.action.onClicked.addListener((tab: chrome.tabs.Tab) => {
 	if (tab?.id !== undefined) openPanelOnTab(tab.id, "action");
+});
+
+// Right-click a page: hand the tab to the agent (opens the panel on it).
+const SHARE_TAB_MENU_ID = "sitegeist-share-tab";
+chrome.runtime.onInstalled.addListener(() => {
+	chrome.contextMenus.removeAll(() => {
+		chrome.contextMenus.create({
+			id: SHARE_TAB_MENU_ID,
+			title: "Share this tab with Sitegeist",
+			contexts: ["page"],
+		});
+	});
+});
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+	if (info.menuItemId !== SHARE_TAB_MENU_ID || tab?.id === undefined) return;
+	openPanelOnTab(tab.id, "context-menu");
 });
 
 // Listen for messages from userScripts (overlay in page).

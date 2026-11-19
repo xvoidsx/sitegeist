@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-19
+
+### Added
+- Right-click any page and choose "Share this tab with Sitegeist" to open the panel on that tab and hand it to the agent
+
+### Fixed
+- The panel no longer closes itself a few seconds after opening: the worker's tab reconcile could disable the panel for a tab whose session was still binding (the panel's own startup writes re-ran the reconcile before the session was bound)
+
 ## [1.2.10] - 2026-11-19
 
 ### Fixed
