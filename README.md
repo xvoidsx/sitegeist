@@ -39,6 +39,10 @@ leaves the room. Your data stays on your machine. Nothing is collected or tracke
 
 ## What xvoidsx did with this fork
 
+<img width="1336" height="692" alt="image" src="https://github.com/user-attachments/assets/5d393939-4b32-44dd-84f5-70555117ecd6" />
+
+###### sitegeist running inside of Brave Nightly
+
 Sitegeist began as [badlogic/sitegeist](https://github.com/badlogic/sitegeist)
 by Mario Zechner. 0xSero's fork ([0xSero/sitegeist](https://github.com/0xSero/sitegeist))
 added the background tab groups, per-tab panels, runtime model lists, and the harness
@@ -79,6 +83,8 @@ a rebuild around the way we actually use it.
   (which reported 0.6.x and whose Update button installed upstream over this fork).
   The comparison is a real newer-than check, so a local build ahead of the latest
   release is not flagged as an update.
+- **"Share this tab with Sitegeist" context menu entry**. Sitegeist now shows up in your browser's context menu when you right-click somewhere on a web page, so you can immediately open a conversation from any page. Further tools in the context menu are going to be worked on in future versions.
+- **Tab group names have a friendly 👻 emoji**. More of an aesthetic choice, but the old naming convention of "*Sitegeist - chat* often made tab group names quite long - this new convention aligns with our new Sitegeist logo anyway, a friendly little ghost in the Wired, ready to help in your browser.
 - **Bridge status in Settings.** The Bridge tab shows whether the native host is
   reachable (with the connected harness names) or "not reachable" with the reason and
   the `sitegeist install` remedy. `sitegeist status` is honest the same way: it no
