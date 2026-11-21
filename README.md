@@ -112,13 +112,12 @@ over any version number written down elsewhere.
 
 ## Install the extension
 
-On navi, the install path is `scripts/system/navi-lfm3-default-setup.sh` in the
-[navi repo](https://github.com/xvoidsx/navi). (navi's `install.sh` itself does not set
-sitegeist up — it ships omp and pi, not this.) The script clones (or pulls) this fork, builds
-the extension, links the CLI, installs the native host, and writes the pi extension —
-idempotently, so re-running it after an update only fixes what is missing. It prints
-two manual steps it cannot do for you: load the unpacked extension in Brave (below),
-and add the "Ollama (local)" preset in the side panel. That script is also how LFM3
+On navi, sitegeist will be set up automatically in a future eiri release — the
+install path will clone (or pull) this fork, build the extension, link the CLI,
+install the native host, and write the pi extension. The setup script itself is
+being written this weekend, and this section will be updated once it is tested.
+Until then, use the manual steps below. (navi's `install.sh` itself does not set
+sitegeist up — it ships omp and pi, not this.) That script is also how LFM3
 becomes the default Ollama model and the default pi model on a navi machine.
 
 Otherwise:
