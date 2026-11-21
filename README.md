@@ -152,7 +152,8 @@ sitegeist status                                      # is the extension reachab
 
 Run the link from inside `cli/` — the repo root is also named `sitegeist` but has no
 `bin` field, so a root `npm link` silently creates no binary and `sitegeist install`
-then fails with "no such file or directory".
+then fails with "no such file or directory". If `npm link` fails with EACCES, npm's
+global prefix is root-owned — rerun it with `sudo` (`doas` on navi).
 
 How the pi setup works: `sitegeist install` writes the native-messaging manifest for
 every Chromium browser found (Brave included), so the browser can spawn the native

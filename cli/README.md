@@ -20,7 +20,9 @@ sitegeist install     # writes the native-messaging manifest for every Chromium 
 ```
 
 `sitegeist mcp` runs the installer itself on first use, so a harness configured to start
-it needs no extra step. Reload the extension once after the first install.
+it needs no extra step. If `npm link` fails with EACCES, rerun it with `sudo`
+(`doas` on navi) — the default npm prefix (`/usr/local`) is root-owned on a fresh
+install. Reload the extension once after the first install.
 
 ## Commands
 
