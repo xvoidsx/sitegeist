@@ -15,8 +15,8 @@ user can reach. The client refuses sockets and directories it does not own.
 ## Install
 
 ```bash
-npm install -g sitegeist        # or: npm link from this directory
-sitegeist install               # writes the native-messaging manifest for every Chromium browser found
+npm link              # from this directory; the package is not on npm yet
+sitegeist install     # writes the native-messaging manifest for every Chromium browser found
 ```
 
 `sitegeist mcp` runs the installer itself on first use, so a harness configured to start
@@ -27,9 +27,11 @@ it needs no extra step. Reload the extension once after the first install.
 | Command | Purpose |
 | --- | --- |
 | `sitegeist mcp` | stdio MCP server exposing the browser tools |
-| `sitegeist install [--force]` | write the native host manifest (Chrome, Chromium, Brave, Edge, Arc, Vivaldi, Opera; Linux and Windows too) |
+| `sitegeist install [--force]` | write the native host manifest for every Chromium browser found (Chrome, Brave, Edge, Yandex, Helium, Thorium, Vivaldi, Opera, Chromium, Arc — all channels; Linux, macOS, and Windows) |
 | `sitegeist status` | is a browser reachable, is the extension connected |
 | `sitegeist allow <host>` | let agents open a site without a prompt (subdomains included) |
+| `sitegeist yolo` | let agents open any site without a prompt (allow-all mode) |
+| `sitegeist ask` | ask before agents open a new site (back to ask mode) |
 | `sitegeist reload` | reload the extension (after rebuilding `dist-chrome`) |
 | `sitegeist debug` | bridge state, recent request timings, Chrome API benchmark |
 | `sitegeist pi-extension` | write `~/.pi/agent/extensions/sitegeist.ts` for pi |

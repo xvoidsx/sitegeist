@@ -17,7 +17,8 @@ use your browser too. Built for collaboration, not autonomy theater. You guide, 
 Sitegeist automates repetitive web tasks, extracts data from any website, navigates across
 pages, fills out forms, compiles research, and turns what it finds into documents,
 spreadsheets, or whatever you need. It works on any website through a Chromium side panel
-(Chrome, Brave, Edge, Arc, Vivaldi, Opera, Chromium), using the AI provider of your choice.
+(Chrome, Brave, Edge, Arc, Vivaldi, Opera, Chromium, Yandex, Helium, and the rest of the
+Chromium family), using the AI provider of your choice.
 
 Bring your own API key or log in with an existing subscription (Anthropic Claude,
 OpenAI/ChatGPT, GitHub Copilot, Google Gemini). Or skip the cloud entirely and point
@@ -89,6 +90,12 @@ a rebuild around the way we actually use it.
   reachable (with the connected harness names) or "not reachable" with the reason and
   the `sitegeist install` remedy. `sitegeist status` is honest the same way: it no
   longer reports "installed" when the CLI itself is gone.
+- **Native host installer covers every Chromium channel and fork.** `sitegeist install`
+  now writes the manifest for Brave (stable, Beta, Dev, Nightly, Origin), Edge (stable,
+  Beta, Dev), Chrome (stable, Beta, Dev, Canary), Yandex, Helium, Thorium, Vivaldi
+  (stable and Snapshot), Opera, Chromium, and Arc, on Linux, macOS, and Windows — so
+  the bridge is reachable in any of them. Before, the installer only knew a handful of
+  browsers, and the rest couldn't see the bridge at all even with it running.
 - **Rebuildable from a bare clone.** `@mariozechner/mini-lit` is pinned to the
   published `0.2.1` and the pi packages to published `0.73.1` — no sibling checkouts
   needed. The nine `node_modules` patches (restored Agent mutators, `omitMaxTokens`,
@@ -117,7 +124,8 @@ becomes the default Ollama model and the default pi model on a navi machine.
 Otherwise:
 
 1. Download or build (`npm run build`) the unpacked extension in `dist-chrome/`.
-2. Open `chrome://extensions` (or `brave://extensions`), enable Developer mode, click
+2. Open `chrome://extensions` (or `brave://extensions`, `edge://extensions`, and the
+   equivalent page in any Chromium browser), enable Developer mode, click
    Load unpacked, select `dist-chrome/`.
 3. Open the side panel with `Cmd+Shift+S` / `Ctrl+Shift+S` and connect a provider.
 
@@ -199,7 +207,7 @@ Site access: by default the extension asks before an agent opens a new site. Cla
 and Codex show the prompt inline (MCP elicitation). Otherwise answer it in the side panel
 under Settings > Bridge, run `sitegeist allow <host>`, or switch to "allow any site".
 
-CLI commands: `mcp`, `install`, `status`, `allow <host>`, `reload`, `debug`,
+CLI commands: `mcp`, `install`, `status`, `allow <host>`, `yolo`, `ask`, `reload`, `debug`,
 `pi-extension`. See `cli/README.md`.
 
 ## What changed in this fork
@@ -236,8 +244,8 @@ Extension:
 - Fixed the type errors in the custom provider dialogs.
 
 CLI (`cli/`, package `sitegeist`): native host, socket client, MCP server with 23 tools,
-installer for all Chromium browser directories (macOS, Linux, Windows registry), pi
-extension generator.
+installer for every Chromium browser directory — all channels and forks (macOS, Linux,
+Windows registry), pi extension generator.
 
 Design and evidence (reference implementations, experiments, protocol): see
 `docs/agent-bridge-design.md`. Live task results and bridge latencies: `docs/benchmarks.md`.
