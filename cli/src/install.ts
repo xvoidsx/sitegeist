@@ -13,6 +13,10 @@ import { NATIVE_HOST_NAME } from "../../src/bridge/protocol.ts";
 /** Stable id from the `key` in static/manifest.chrome.json. */
 export const EXTENSION_ID = "bbkgpflnkggdfabgjhofdmdopgjopamc";
 
+// Every Chromium user-data dir we know how to install the native host into,
+// across all channels and forks. install() skips dirs that don't exist, so
+// extra entries are free — a missing browser costs nothing, a missing entry
+// costs that browser its bridge.
 function browserDirs(): string[] {
 	const home = homedir();
 	if (process.platform === "darwin") {
@@ -20,13 +24,26 @@ function browserDirs(): string[] {
 		return [
 			join(base, "Google", "Chrome"),
 			join(base, "Google", "Chrome Beta"),
+			join(base, "Google", "Chrome Dev"),
 			join(base, "Google", "Chrome Canary"),
 			join(base, "Chromium"),
 			join(base, "BraveSoftware", "Brave-Browser"),
+			join(base, "BraveSoftware", "Brave-Browser-Beta"),
+			join(base, "BraveSoftware", "Brave-Browser-Dev"),
+			join(base, "BraveSoftware", "Brave-Browser-Nightly"),
+			join(base, "BraveSoftware", "Brave-Origin"),
+			join(base, "BraveSoftware", "Brave-Origin-Nightly"),
 			join(base, "Microsoft Edge"),
+			join(base, "Microsoft Edge Beta"),
+			join(base, "Microsoft Edge Dev"),
 			join(base, "Arc", "User Data"),
 			join(base, "Vivaldi"),
+			join(base, "Vivaldi Snapshot"),
 			join(base, "com.operasoftware.Opera"),
+			join(base, "Yandex"),
+			join(base, "Helium"),
+			join(base, "Helium", "User Data"),
+			join(base, "Thorium"),
 		];
 	}
 	if (process.platform === "linux") {
@@ -34,11 +51,27 @@ function browserDirs(): string[] {
 		return [
 			join(cfg, "google-chrome"),
 			join(cfg, "google-chrome-beta"),
+			join(cfg, "google-chrome-unstable"),
+			join(cfg, "google-chrome-dev"),
+			join(cfg, "google-chrome-canary"),
 			join(cfg, "chromium"),
 			join(cfg, "BraveSoftware", "Brave-Browser"),
+			join(cfg, "BraveSoftware", "Brave-Browser-Beta"),
+			join(cfg, "BraveSoftware", "Brave-Browser-Dev"),
+			join(cfg, "BraveSoftware", "Brave-Browser-Nightly"),
+			join(cfg, "BraveSoftware", "Brave-Origin"),
+			join(cfg, "BraveSoftware", "Brave-Origin-Nightly"),
 			join(cfg, "microsoft-edge"),
+			join(cfg, "microsoft-edge-beta"),
+			join(cfg, "microsoft-edge-dev"),
 			join(cfg, "vivaldi"),
+			join(cfg, "vivaldi-snapshot"),
 			join(cfg, "opera"),
+			join(cfg, "yandex-browser"),
+			join(cfg, "yandex-browser-beta"),
+			join(cfg, "net.imput.helium"),
+			join(cfg, "helium"),
+			join(cfg, "thorium"),
 		];
 	}
 	return [];
@@ -92,7 +125,21 @@ export function install(options: { force?: boolean } = {}): InstallResult {
 		const dir = join(homedir(), ".config", "sitegeist");
 		const file = join(dir, `${NATIVE_HOST_NAME}.json`);
 		writeFileSync(file, manifest);
-		for (const hive of ["Google\\Chrome", "BraveSoftware\\Brave-Browser", "Microsoft\\Edge", "Chromium"]) {
+		for (const hive of [
+			"Google\\Chrome",
+			"Google\\Chrome Beta",
+			"Google\\Chrome Dev",
+			"Google\\Chrome Canary",
+			"BraveSoftware\\Brave-Browser",
+			"BraveSoftware\\Brave-Browser-Beta",
+			"BraveSoftware\\Brave-Browser-Dev",
+			"BraveSoftware\\Brave-Browser-Nightly",
+			"BraveSoftware\\Brave-Origin",
+			"Microsoft\\Edge",
+			"Microsoft\\Edge Beta",
+			"Microsoft\\Edge Dev",
+			"Chromium",
+		]) {
 			const key = `HKCU\\Software\\${hive}\\NativeMessagingHosts\\${NATIVE_HOST_NAME}`;
 			try {
 				execFileSync("reg", ["add", key, "/ve", "/t", "REG_SZ", "/d", file, "/f"], { stdio: "ignore" });

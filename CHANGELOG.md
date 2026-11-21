@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- The native host installer now covers all Chromium channels and forks: Brave Beta/Dev/Nightly/Origin (plus Origin Nightly), Edge Beta/Dev, Chrome Dev/Canary, Yandex (plus Beta), Helium, Thorium, and Vivaldi Snapshot, on Linux, macOS, and Windows. Browsers the installer never wrote a manifest for could not see the bridge at all, even with the bridge running
+
 ## [1.3.1] - 2026-11-19
 
 ### Added
