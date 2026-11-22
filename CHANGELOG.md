@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-22
+
 ### Added
 - Installation instructions now cover the `OLLAMA_ORIGINS` step local Ollama needs before the side panel can reach it — without it the panel fails with a bare 403 while the bridge keeps working
 
