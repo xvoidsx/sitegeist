@@ -128,6 +128,12 @@ Otherwise:
    Load unpacked, select `dist-chrome/`.
 3. Open the side panel with `Cmd+Shift+S` / `Ctrl+Shift+S` and connect a provider.
 
+Local Ollama needs one extra step: the side panel reaches Ollama from the browser,
+so Ollama must allow the extension's origin. If the panel fails with a bare 403
+while the bridge keeps working, Ollama is rejecting that origin — set
+`OLLAMA_ORIGINS=*` in Ollama's environment and restart it (systemd:
+`systemctl edit ollama`, add `[Service]` and `Environment="OLLAMA_ORIGINS=*"`).
+
 No toggles are required. In-page JavaScript runs through the `userScripts` API when the
 browser exposes it (an isolated world whose CSP blocks network access from injected code)
 and through the debugger's `Runtime.evaluate` otherwise (the page's main world; Chrome

@@ -43,7 +43,7 @@ export class WelcomeMessageElement extends LitElement {
 	private currentTaglineIndex = 0;
 	private intervalId?: number;
 
-	@state() private driverLabel?: string;
+	@state() private customProviderNames?: Set<string>;
 	@state() private buildVersion?: string;
 
 	protected createRenderRoot() {
@@ -57,7 +57,7 @@ export class WelcomeMessageElement extends LitElement {
 			this.currentTaglineIndex = (this.currentTaglineIndex + 1) % this.taglines.length;
 			this.requestUpdate();
 		}, 4000);
-		void this.loadDriverBadge();
+		void this.loadCustomProviderNames();
 		try {
 			this.buildVersion = chrome.runtime.getManifest().version;
 		} catch {
@@ -65,18 +65,27 @@ export class WelcomeMessageElement extends LitElement {
 		}
 	}
 
-	/** Show "model · provider" only when a local custom provider is configured. */
-	private async loadDriverBadge() {
+	/** Names of the configured local custom providers (e.g. "Ollama Local"). */
+	private async loadCustomProviderNames() {
 		try {
 			const providers = await getSitegeistStorage().customProviders.getAll();
-			const preferred = providers.find((p) => p.name === "Ollama Local") ?? providers[0];
-			const model = preferred?.models?.[0];
-			if (model) {
-				this.driverLabel = `${model.id} · ${preferred.name}`;
-			}
+			this.customProviderNames = new Set(providers.map((p) => p.name));
 		} catch {
 			// No local provider configured; the badge simply stays hidden.
+			this.customProviderNames = new Set();
 		}
+	}
+
+	/**
+	 * "model · provider" for the model the agent is actually using, shown only
+	 * when that model belongs to a local custom provider. Derived at render time
+	 * from agent.state.model (not the provider's first model), so switching models
+	 * updates the badge on the next render.
+	 */
+	private get driverLabel(): string | undefined {
+		const model = this.agent.state.model;
+		if (!model || !this.customProviderNames?.has(model.provider)) return undefined;
+		return `${model.id} · ${model.provider}`;
 	}
 
 	override disconnectedCallback() {

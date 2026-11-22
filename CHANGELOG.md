@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+- Installation instructions now cover the `OLLAMA_ORIGINS` step local Ollama needs before the side panel can reach it — without it the panel fails with a bare 403 while the bridge keeps working
+
+### Fixed
+- The welcome screen's "model · provider" badge now shows the model the agent is actually using instead of the provider's first model, so switching models updates the badge
+
 ## [1.4.0] - 2026-11-21
 
 ### Added
