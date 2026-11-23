@@ -1,6 +1,6 @@
 {
 	"name": "sitegeist",
-	"version": "1.4.1",
+	"version": "1.4.2",
 	"private": true,
 	"description": "AI-powered browser extension for web navigation and interaction",
 	"type": "module",

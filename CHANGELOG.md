@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-11-23
+
 ### Added
 - The native host installer now covers Ardia (Linux and macOS): `sitegeist install` writes the bridge manifest into Ardia's user-data dir, so the bridge is reachable there too. Windows waits for a follow-up — Ardia's registry hive isn't confirmed yet
 
