@@ -29,7 +29,7 @@ install. Reload the extension once after the first install.
 | Command | Purpose |
 | --- | --- |
 | `sitegeist mcp` | stdio MCP server exposing the browser tools |
-| `sitegeist install [--force]` | write the native host manifest for every Chromium browser found (Chrome, Brave, Edge, Yandex, Helium, Thorium, Vivaldi, Opera, Chromium, Arc — all channels; Linux, macOS, and Windows) |
+| `sitegeist install [--force]` | write the native host manifest for every Chromium browser found (Chrome, Brave, Edge, Yandex, Helium, Thorium, Vivaldi, Opera, Chromium, Arc — all channels; Linux, macOS, and Windows; Ardia on Linux and macOS) |
 | `sitegeist status` | is a browser reachable, is the extension connected |
 | `sitegeist allow <host>` | let agents open a site without a prompt (subdomains included) |
 | `sitegeist yolo` | let agents open any site without a prompt (allow-all mode) |

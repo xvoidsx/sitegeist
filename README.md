@@ -93,7 +93,7 @@ a rebuild around the way we actually use it.
 - **Native host installer covers every Chromium channel and fork.** `sitegeist install`
   now writes the manifest for Brave (stable, Beta, Dev, Nightly, Origin), Edge (stable,
   Beta, Dev), Chrome (stable, Beta, Dev, Canary), Yandex, Helium, Thorium, Vivaldi
-  (stable and Snapshot), Opera, Chromium, and Arc, on Linux, macOS, and Windows — so
+  (stable and Snapshot), Opera, Chromium, Arc, and Ardia (Linux and macOS), on Linux, macOS, and Windows — so
   the bridge is reachable in any of them. Before, the installer only knew a handful of
   browsers, and the rest couldn't see the bridge at all even with it running.
 - **Rebuildable from a bare clone.** `@mariozechner/mini-lit` is pinned to the

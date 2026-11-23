@@ -37,6 +37,8 @@ function browserDirs(): string[] {
 			join(base, "Microsoft Edge Beta"),
 			join(base, "Microsoft Edge Dev"),
 			join(base, "Arc", "User Data"),
+			join(base, "Ardia"),
+			join(base, "Ardia Dev"),
 			join(base, "Vivaldi"),
 			join(base, "Vivaldi Snapshot"),
 			join(base, "com.operasoftware.Opera"),
@@ -72,6 +74,7 @@ function browserDirs(): string[] {
 			join(cfg, "net.imput.helium"),
 			join(cfg, "helium"),
 			join(cfg, "thorium"),
+			join(cfg, "ardia"),
 		];
 	}
 	return [];
